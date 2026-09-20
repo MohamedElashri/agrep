@@ -26,10 +26,22 @@ jobs:
       - name: Validate release tag
         shell: bash
         env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+          number='(0|[1-9][0-9]*)'
+          prerelease_id='(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)'
+          build_id='[0-9A-Za-z-]+'
+          semver="^v${number}\.${number}\.${number}(-${prerelease_id}(\.${prerelease_id})*)?(\+${build_id}(\.${build_id})*)?$"
+
+          if [[ ! "$RELEASE_TAG" =~ $semver ]]; then
             echo "Release tags must use SemVer, for example v1.2.3 or v1.2.3-rc.1"
+            exit 1
+          fi
+
+          release_commit="$(git rev-list -n 1 "$RELEASE_TAG")"
+          if ! git merge-base --is-ancestor "$release_commit" "origin/$DEFAULT_BRANCH"; then
+            echo "Release tag $RELEASE_TAG is not on the default branch ($DEFAULT_BRANCH)"
             exit 1
           fi
 
@@ -53,4 +65,3 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
