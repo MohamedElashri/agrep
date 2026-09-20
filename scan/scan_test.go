@@ -153,6 +153,54 @@ func TestSearchRejectsNegativeContext(t *testing.T) {
 	}
 }
 
+func TestSearchMapsSpansToOriginalText(t *testing.T) {
+	m := mustLiteral(t, "مد")
+	input := "مُدُ next\n"
+	var got Match
+	found, err := Search(strings.NewReader(input), m, Options{MapSpans: true}, func(mt Match) error {
+		got = mt
+		return nil
+	})
+	if err != nil || !found {
+		t.Fatalf("Search = found %v, err %v", found, err)
+	}
+	want := Span{0, len("مُدُ")}
+	if len(got.Spans) != 1 || got.Spans[0] != want {
+		t.Fatalf("spans = %v; want %v", got.Spans, want)
+	}
+}
+
+func TestSearchMapsPresentationComponentToWholeLigature(t *testing.T) {
+	m := mustLiteral(t, "ل")
+	var got Match
+	_, err := Search(strings.NewReader("ﻻ\n"), m, Options{MapSpans: true}, func(mt Match) error {
+		got = mt
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := (Span{0, len("ﻻ")}); len(got.Spans) != 1 || got.Spans[0] != want {
+		t.Fatalf("spans = %v; want %v", got.Spans, want)
+	}
+}
+
+func TestSearchWordRegexpUsesOriginalBoundaries(t *testing.T) {
+	m := mustLiteral(t, "كتاب")
+	input := "كتابه\nكتاب،\nالــكتاب\n"
+	var lines []int64
+	found, err := Search(strings.NewReader(input), m, Options{MapSpans: true, WordRegexp: true}, func(mt Match) error {
+		lines = append(lines, mt.Line)
+		return nil
+	})
+	if err != nil || !found {
+		t.Fatalf("Search = found %v, err %v", found, err)
+	}
+	if len(lines) != 1 || lines[0] != 2 {
+		t.Fatalf("word matches = %v; want [2]", lines)
+	}
+}
+
 // FuzzSearchNoPanic feeds arbitrary input bytes, an arbitrary query, and an
 // arbitrary profile through match.NewLiteral and Search, and only requires
 // that it returns (an error is fine; a panic is not). It exercises the
@@ -187,6 +235,30 @@ func FuzzSearchNoPanic(f *testing.F) {
 		maxLineBytes %= 1 << 20
 
 		_, _ = Search(bytes.NewReader(data), m, Options{MaxLineBytes: maxLineBytes}, func(Match) error {
+			return nil
+		})
+	})
+}
+
+func FuzzSearchMappedNoPanic(f *testing.F) {
+	f.Add([]byte("هذه مَدِينَة\nﻻ\n"), "مدينه", 0, false)
+	f.Add([]byte("كتابه\nكتاب،\n"), "كتاب", 1, true)
+	f.Add([]byte{'x', 0xff, '\n'}, "x", 2, false)
+
+	profiles := [...]arabic.Profile{
+		arabic.ProfileSearch, arabic.ProfileStrict, arabic.ProfileLoose,
+		arabic.ProfileLucene, arabic.ProfileCAMeL,
+	}
+	f.Fuzz(func(t *testing.T, data []byte, query string, profileIdx int, word bool) {
+		i := profileIdx % len(profiles)
+		if i < 0 {
+			i += len(profiles)
+		}
+		m, err := match.NewLiteral(query, profiles[i])
+		if err != nil {
+			return
+		}
+		_, _ = Search(bytes.NewReader(data), m, Options{MapSpans: true, WordRegexp: word}, func(Match) error {
 			return nil
 		})
 	})

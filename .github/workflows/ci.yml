@@ -105,11 +105,20 @@ jobs:
       - name: Fuzz profile normalize no panic (full flag space, incl. invalid scopes)
         run: go test -run '^$' -fuzz '^FuzzProfileNormalizeNoPanic$' -fuzztime 20s ./arabic
 
+      - name: Fuzz mapped normalization equivalence (full flag space)
+        run: go test -run '^$' -fuzz '^FuzzNormalizeMappedMatchesNormalize$' -fuzztime 30s ./arabic
+
       - name: Fuzz literal matcher no panic
         run: go test -run '^$' -fuzz '^FuzzNewLiteralNoPanic$' -fuzztime 20s ./match
 
+      - name: Fuzz regex matcher no panic
+        run: go test -run '^$' -fuzz '^FuzzNewRegexNoPanic$' -fuzztime 20s ./match
+
       - name: Fuzz search no panic
         run: go test -run '^$' -fuzz '^FuzzSearchNoPanic$' -fuzztime 20s ./scan
+
+      - name: Fuzz mapped search no panic
+        run: go test -run '^$' -fuzz '^FuzzSearchMappedNoPanic$' -fuzztime 20s ./scan
 
   release-check:
     name: Build release artifacts

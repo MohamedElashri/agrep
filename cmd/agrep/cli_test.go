@@ -15,7 +15,7 @@ func TestRunJSONLines(t *testing.T) {
 	input := "ignore\nالمَدِينَة <tag>\n"
 	var stdout, stderr strings.Builder
 	code := run([]string{"--json", "مدينه"}, strings.NewReader(input), &stdout, &stderr)
-	want := "{\"line\":2,\"text\":\"المَدِينَة <tag>\"}\n"
+	want := "{\"line\":2,\"text\":\"المَدِينَة <tag>\",\"spans\":[[4,20]]}\n"
 	if code != 0 || stdout.String() != want || stderr.Len() != 0 {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
@@ -324,9 +324,97 @@ func TestRunJSONFileField(t *testing.T) {
 	writeTestFile(t, name, "needle\n")
 	var stdout, stderr strings.Builder
 	code := run([]string{"--json", "needle", name}, strings.NewReader(""), &stdout, &stderr)
-	want := "{\"file\":" + strconvQuote(name) + ",\"line\":1,\"text\":\"needle\"}\n"
+	want := "{\"file\":" + strconvQuote(name) + ",\"line\":1,\"text\":\"needle\",\"spans\":[[0,6]]}\n"
 	if code != 0 || stdout.String() != want || stderr.Len() != 0 {
 		t.Fatalf("code=%d stdout=%q want=%q stderr=%q", code, stdout.String(), want, stderr.String())
+	}
+}
+
+func TestRunJSONNeverContainsColorControls(t *testing.T) {
+	var stdout, stderr strings.Builder
+	code := run([]string{"--json", "--color=always", "مدينه"}, strings.NewReader("مَدِينَة\n"), &stdout, &stderr)
+	if code != 0 || strings.Contains(stdout.String(), "\x1b[") || stderr.Len() != 0 {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+}
+
+func TestRunOnlyMatchingUsesOriginalText(t *testing.T) {
+	var stdout, stderr strings.Builder
+	code := run([]string{"-o", "مدينه"}, strings.NewReader("هذه مَدِينَة جميلة\n"), &stdout, &stderr)
+	if code != 0 || stdout.String() != "مَدِينَة\n" || stderr.Len() != 0 {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+}
+
+func TestRunRegexUsesNormalizedText(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want int
+	}{
+		{"normalized expression matches", []string{"--regex", `^مدرس[هة]$`}, 0},
+		{"raw ta-marbuta does not match default folded text", []string{"--regex", `ة`}, 1},
+		{"raw ta-marbuta matches strict text", []string{"--regex", "--profile=strict", `ة`}, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr strings.Builder
+			if code := run(tt.args, strings.NewReader("مَدْرَسَة\n"), &stdout, &stderr); code != tt.want {
+				t.Fatalf("code=%d want=%d stdout=%q stderr=%q", code, tt.want, stdout.String(), stderr.String())
+			}
+		})
+	}
+}
+
+func TestRunWordRegexpUsesOriginalText(t *testing.T) {
+	var stdout, stderr strings.Builder
+	code := run([]string{"-w", "كتاب"}, strings.NewReader("كتابه\nكتاب،\nالــكتاب\n"), &stdout, &stderr)
+	if code != 0 || stdout.String() != "كتاب،\n" || stderr.Len() != 0 {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+}
+
+func TestRunColorUsesRTLIsolates(t *testing.T) {
+	var stdout, stderr strings.Builder
+	code := run([]string{"--color=always", "مدينه"}, strings.NewReader("هذه مَدِينَة جميلة\n"), &stdout, &stderr)
+	rli, pdi := string(rune(0x2067)), string(rune(0x2069))
+	want := "هذه " + rli + ansiMatchStart + "مَدِينَة" + ansiMatchEnd + pdi + " جميلة\n"
+	if code != 0 || stdout.String() != want || stderr.Len() != 0 {
+		t.Fatalf("code=%d stdout=%q want=%q stderr=%q", code, stdout.String(), want, stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	code = run([]string{"--color=always", "--no-bidi-isolate", "مدينه"}, strings.NewReader("هذه مَدِينَة جميلة\n"), &stdout, &stderr)
+	want = "هذه " + ansiMatchStart + "مَدِينَة" + ansiMatchEnd + " جميلة\n"
+	if code != 0 || stdout.String() != want || stderr.Len() != 0 {
+		t.Fatalf("no-isolate: code=%d stdout=%q want=%q stderr=%q", code, stdout.String(), want, stderr.String())
+	}
+}
+
+func TestRunColorFullyVoweledQuranicLine(t *testing.T) {
+	var stdout, stderr strings.Builder
+	input := "قَالَ ٱللَّهُۖ غَفُورٌ\n"
+	code := run([]string{"--color=always", "الله"}, strings.NewReader(input), &stdout, &stderr)
+	rli, pdi := string(rune(0x2067)), string(rune(0x2069))
+	want := "قَالَ " + rli + ansiMatchStart + "ٱللَّهُۖ" + ansiMatchEnd + pdi + " غَفُورٌ\n"
+	if code != 0 || stdout.String() != want || stderr.Len() != 0 {
+		t.Fatalf("code=%d stdout=%q want=%q stderr=%q", code, stdout.String(), want, stderr.String())
+	}
+}
+
+func TestRunRejectsInvalidPhase6Options(t *testing.T) {
+	tests := [][]string{
+		{"--regex", "["},
+		{"--color=bogus", "x"},
+		{"-o", "-v", "x"},
+		{"-o", "-A", "1", "x"},
+	}
+	for _, args := range tests {
+		var stdout, stderr strings.Builder
+		if code := run(args, strings.NewReader("x\n"), &stdout, &stderr); code != 2 {
+			t.Fatalf("args=%v code=%d; want 2 (stdout=%q stderr=%q)", args, code, stdout.String(), stderr.String())
+		}
 	}
 }
 

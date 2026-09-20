@@ -29,6 +29,8 @@ Search options:
   -e PATTERN                       add a pattern (repeatable)
   -i, --ignore-case               apply Unicode case folding
   -v, --invert-match              select non-matching lines
+  -w, --word-regexp               require original-text word boundaries
+      --regex                     treat patterns as regular expressions over normalized text
   -r, --recursive                 walk directories (or the current directory)
       --include GLOB              search only matching files (repeatable)
       --exclude GLOB              skip matching files/directories (repeatable)
@@ -46,6 +48,9 @@ Output options:
   -C N, --context N               print N lines before and after selected lines
   -H, --with-filename             always print filename prefixes
   -h, --no-filename               never print filename prefixes
+  -o, --only-matching             print only original-text matched spans
+      --color WHEN                auto|always|never (default: auto)
+      --no-bidi-isolate           omit RTL isolates around colored Arabic spans
 
 Normalization options:
       --max-line-bytes N          reject longer logical lines (0 means unlimited)
@@ -84,6 +89,57 @@ const (
 	filenameNever
 )
 
+type colorMode uint8
+
+const (
+	colorAuto colorMode = iota
+	colorAlways
+	colorNever
+)
+
+func (m *colorMode) String() string {
+	switch *m {
+	case colorAlways:
+		return "always"
+	case colorNever:
+		return "never"
+	default:
+		return "auto"
+	}
+}
+
+func (m *colorMode) Set(value string) error {
+	switch value {
+	case "auto":
+		*m = colorAuto
+	case "always":
+		*m = colorAlways
+	case "never":
+		*m = colorNever
+	default:
+		return fmt.Errorf("color must be auto, always, or never")
+	}
+	return nil
+}
+
+func colorEnabled(mode colorMode, output io.Writer) bool {
+	switch mode {
+	case colorAlways:
+		return true
+	case colorNever:
+		return false
+	}
+	if _, disabled := os.LookupEnv("NO_COLOR"); disabled || os.Getenv("TERM") == "dumb" {
+		return false
+	}
+	file, ok := output.(*os.File)
+	if !ok {
+		return false
+	}
+	info, err := file.Stat()
+	return err == nil && info.Mode()&os.ModeCharDevice != 0
+}
+
 type cliOptions struct {
 	jsonOutput        bool
 	lineNumbers       bool
@@ -95,6 +151,8 @@ type cliOptions struct {
 	recursive         bool
 	ignoreCase        bool
 	invertMatch       bool
+	wordRegexp        bool
+	regex             bool
 	countOnly         bool
 	filesWithMatches  bool
 	filesWithoutMatch bool
@@ -106,6 +164,9 @@ type cliOptions struct {
 	excludes          stringList
 	noIgnore          bool
 	threads           int
+	onlyMatching      bool
+	color             colorMode
+	noBidiIsolate     bool
 }
 
 // profileOverrides are the --keep-*/--fold-* flags applied on top of
@@ -144,7 +205,12 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "agrep: %v\n", err)
 		return 2
 	}
-	matcher, err := match.NewLiterals(queries, profile, opts.ignoreCase)
+	var matcher match.Matcher
+	if opts.regex {
+		matcher, err = match.NewRegex(queries, profile, opts.ignoreCase)
+	} else {
+		matcher, err = match.NewLiterals(queries, profile, opts.ignoreCase)
+	}
 	if err != nil {
 		fmt.Fprintf(stderr, "agrep: %v\n", err)
 		return 2
@@ -156,8 +222,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	showFilenames := opts.filenameMode == filenameAlways ||
 		(opts.filenameMode == filenameAuto && (len(inputs) > 1 || opts.recursive))
+	highlight := colorEnabled(opts.color, stdout)
 
-	hadSelection, searchErr := searchInputs(inputs, stdin, stdout, matcher, opts, showFilenames)
+	hadSelection, searchErr := searchInputs(inputs, stdin, stdout, matcher, opts, showFilenames, highlight)
 	err = errors.Join(discoverErr, searchErr)
 	if err != nil {
 		fmt.Fprintf(stderr, "agrep: %v\n", err)
@@ -223,9 +290,9 @@ type fileResult struct {
 	err       error
 }
 
-func searchInputs(inputs []inputSpec, stdin io.Reader, stdout io.Writer, matcher match.Matcher, opts cliOptions, showFilenames bool) (bool, error) {
+func searchInputs(inputs []inputSpec, stdin io.Reader, stdout io.Writer, matcher match.Matcher, opts cliOptions, showFilenames, highlight bool) (bool, error) {
 	if len(inputs) == 1 {
-		found, qualifies, err := searchOne(inputs[0], stdin, stdout, matcher, opts, showFilenames)
+		found, qualifies, err := searchOne(inputs[0], stdin, stdout, matcher, opts, showFilenames, highlight)
 		if opts.filesWithoutMatch {
 			return qualifies, err
 		}
@@ -248,7 +315,7 @@ func searchInputs(inputs []inputSpec, stdin io.Reader, stdout io.Writer, matcher
 			defer wg.Done()
 			for index := range jobs {
 				var buffer bytes.Buffer
-				found, qualifies, err := searchOne(inputs[index], stdin, &buffer, matcher, opts, showFilenames)
+				found, qualifies, err := searchOne(inputs[index], stdin, &buffer, matcher, opts, showFilenames, highlight)
 				results <- fileResult{index: index, output: buffer.Bytes(), found: found, qualifies: qualifies, err: err}
 			}
 		}()
@@ -292,7 +359,7 @@ func searchInputs(inputs []inputSpec, stdin io.Reader, stdout io.Writer, matcher
 	return selected, errors.Join(append(errs, writeErr)...)
 }
 
-func searchOne(input inputSpec, stdin io.Reader, output io.Writer, matcher match.Matcher, opts cliOptions, showFilenames bool) (found, qualifies bool, err error) {
+func searchOne(input inputSpec, stdin io.Reader, output io.Writer, matcher match.Matcher, opts cliOptions, showFilenames, highlight bool) (found, qualifies bool, err error) {
 	reader := stdin
 	var file *os.File
 	if !input.stdin {
@@ -313,6 +380,8 @@ func searchOne(input inputSpec, stdin io.Reader, output io.Writer, matcher match
 		MaxLineBytes: opts.maxLineBytes,
 		File:         input.label,
 		InvertMatch:  opts.invertMatch,
+		WordRegexp:   opts.wordRegexp,
+		MapSpans:     contextLines && (opts.jsonOutput || opts.onlyMatching || highlight),
 	}
 	if contextLines {
 		searchOpts.BeforeContext = opts.beforeContext
@@ -320,7 +389,13 @@ func searchOne(input inputSpec, stdin io.Reader, output io.Writer, matcher match
 	}
 
 	count := int64(0)
-	emit := humanEmitter(output, opts.lineNumbers, showFilenames)
+	emit := humanEmitter(output, humanOutputOptions{
+		lineNumbers:  opts.lineNumbers,
+		filenames:    showFilenames,
+		onlyMatching: opts.onlyMatching,
+		highlight:    highlight,
+		bidiIsolate:  !opts.noBidiIsolate,
+	})
 	if opts.jsonOutput {
 		emit = jsonEmitter(output)
 	}
@@ -418,6 +493,9 @@ func parseArgs(args []string, stdout, stderr io.Writer) (cliOptions, []string, i
 	fs.BoolVar(&opts.ignoreCase, "ignore-case", false, "Unicode case folding")
 	fs.BoolVar(&opts.invertMatch, "v", false, "select non-matching lines")
 	fs.BoolVar(&opts.invertMatch, "invert-match", false, "select non-matching lines")
+	fs.BoolVar(&opts.wordRegexp, "w", false, "require original-text word boundaries")
+	fs.BoolVar(&opts.wordRegexp, "word-regexp", false, "require original-text word boundaries")
+	fs.BoolVar(&opts.regex, "regex", false, "regular expressions over normalized text")
 	fs.BoolVar(&opts.countOnly, "c", false, "print match counts")
 	fs.BoolVar(&opts.countOnly, "count", false, "print match counts")
 	fs.BoolVar(&opts.filesWithMatches, "l", false, "print files with matches")
@@ -439,6 +517,10 @@ func parseArgs(args []string, stdout, stderr io.Writer) (cliOptions, []string, i
 	fs.Var(filenameFlag{mode: &opts.filenameMode, value: filenameAlways}, "with-filename", "print filenames")
 	fs.Var(filenameFlag{mode: &opts.filenameMode, value: filenameNever}, "h", "suppress filenames")
 	fs.Var(filenameFlag{mode: &opts.filenameMode, value: filenameNever}, "no-filename", "suppress filenames")
+	fs.BoolVar(&opts.onlyMatching, "o", false, "print only matched spans")
+	fs.BoolVar(&opts.onlyMatching, "only-matching", false, "print only matched spans")
+	fs.Var(&opts.color, "color", "auto, always, or never")
+	fs.BoolVar(&opts.noBidiIsolate, "no-bidi-isolate", false, "omit RTL isolates around colored spans")
 	fs.Uint64Var(&opts.maxLineBytes, "max-line-bytes", 0, "maximum logical line size")
 	fs.StringVar(&opts.profileName, "profile", "search", "normalization profile")
 	fs.BoolVar(&opts.overrides.keepHamza, "keep-hamza", false, "don't fold hamza/madda variants")
@@ -484,6 +566,10 @@ func parseArgs(args []string, stdout, stderr io.Writer) (cliOptions, []string, i
 	}
 	if opts.jsonOutput && modes > 0 {
 		fmt.Fprintln(stderr, "agrep: --json cannot be combined with count or filename-only output")
+		return opts, nil, 2
+	}
+	if opts.onlyMatching && (opts.invertMatch || modes > 0 || opts.beforeContext > 0 || opts.afterContext > 0) {
+		fmt.Fprintln(stderr, "agrep: --only-matching cannot be combined with invert, summary, or context modes")
 		return opts, nil, 2
 	}
 	return opts, fs.Args(), -1

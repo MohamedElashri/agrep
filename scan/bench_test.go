@@ -26,6 +26,14 @@ func benchFixture(n int) string {
 }
 
 func BenchmarkSearch(b *testing.B) {
+	benchmarkSearch(b, Options{})
+}
+
+func BenchmarkSearchMapped(b *testing.B) {
+	benchmarkSearch(b, Options{MapSpans: true})
+}
+
+func benchmarkSearch(b *testing.B, opts Options) {
 	const fixtureSize = 10 * 1024 * 1024
 	fixture := benchFixture(fixtureSize)
 
@@ -35,7 +43,7 @@ func BenchmarkSearch(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		found, err := Search(strings.NewReader(fixture), m, Options{}, func(Match) error { return nil })
+		found, err := Search(strings.NewReader(fixture), m, opts, func(Match) error { return nil })
 		if err != nil {
 			b.Fatalf("Search: %v", err)
 		}

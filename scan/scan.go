@@ -7,10 +7,17 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
+	"unicode"
 	"unicode/utf8"
 
+	"github.com/MohamedElashri/agrep/arabic"
 	"github.com/MohamedElashri/agrep/match"
 )
+
+// Span is a half-open byte range in Match.Text. Its array representation keeps
+// the stable JSON form compact: [start,end].
+type Span [2]int
 
 // Match is one selected or context logical line. Text excludes the CR/LF line
 // ending. Context identifies neighboring output rather than a selected line.
@@ -20,6 +27,7 @@ type Match struct {
 	Text       string `json:"text"`
 	Context    bool   `json:"context,omitempty"`
 	GroupStart bool   `json:"-"`
+	Spans      []Span `json:"spans,omitempty"`
 }
 
 // Options controls how Search reads input.
@@ -35,7 +43,17 @@ type Options struct {
 	// lines. Context lines have Match.Context set.
 	BeforeContext int
 	AfterContext  int
+	// MapSpans maps matcher offsets back into the original line and includes
+	// them in Match.Spans. It is intentionally opt-in because mapping allocates.
+	MapSpans bool
+	// WordRegexp keeps only matches bounded by non-word runes in the original
+	// text. It implies mapped matching even when MapSpans is false.
+	WordRegexp bool
 }
+
+var mappedIndexPool sync.Pool
+
+const maxPooledIndexCapacity = 4 << 20 // 16 MiB of int32 storage
 
 // Search reads arbitrary-length logical lines from r without
 // bufio.Scanner's token ceiling, and reports every line whose normalized text
@@ -80,15 +98,50 @@ func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) erro
 			return false, fmt.Errorf("line %d is not valid UTF-8", lineNumber)
 		}
 
-		normalized := profile.Normalize(line)
 		matched := false
-		if fast, ok := m.(interface{ Matches(string) bool }); ok {
-			matched = fast.Matches(normalized)
+		var originalSpans []Span
+		needsMapped := opts.WordRegexp || (opts.MapSpans && !opts.InvertMatch)
+		if needsMapped {
+			var scratch []int32
+			var indexBuffer *[]int32
+			if pooled := mappedIndexPool.Get(); pooled != nil {
+				indexBuffer = pooled.(*[]int32)
+				scratch = (*indexBuffer)[:0]
+			} else {
+				indexBuffer = new([]int32)
+			}
+			normalized, idx := profile.NormalizeMappedInto(line, scratch)
+			normalizedSpans := m.FindAll(normalized)
+			for _, span := range normalizedSpans {
+				if span.Start < 0 || span.End < span.Start || span.End >= len(idx) {
+					continue
+				}
+				start, end := arabic.MapSpan(idx, span.Start, span.End)
+				if opts.WordRegexp && !wordBounded(line, start, end) {
+					continue
+				}
+				matched = true
+				if opts.MapSpans {
+					mapped := Span{start, end}
+					if len(originalSpans) == 0 || originalSpans[len(originalSpans)-1] != mapped {
+						originalSpans = append(originalSpans, mapped)
+					}
+				}
+			}
+			if cap(idx) <= maxPooledIndexCapacity {
+				*indexBuffer = idx[:0]
+				mappedIndexPool.Put(indexBuffer)
+			}
 		} else {
-			matched = len(m.FindAll(normalized)) > 0
+			normalized := profile.Normalize(line)
+			if fast, ok := m.(interface{ Matches(string) bool }); ok {
+				matched = fast.Matches(normalized)
+			} else {
+				matched = len(m.FindAll(normalized)) > 0
+			}
 		}
 		selected := matched != opts.InvertMatch
-		mt := Match{File: opts.File, Line: lineNumber, Text: line}
+		mt := Match{File: opts.File, Line: lineNumber, Text: line, Spans: originalSpans}
 		if selected {
 			found = true
 			for _, prior := range before {
@@ -123,6 +176,29 @@ func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) erro
 	}
 
 	return found, nil
+}
+
+func wordBounded(text string, start, end int) bool {
+	if start < 0 || end < start || end > len(text) {
+		return false
+	}
+	if start > 0 {
+		before, _ := utf8.DecodeLastRuneInString(text[:start])
+		if isWordRune(before) {
+			return false
+		}
+	}
+	if end < len(text) {
+		after, _ := utf8.DecodeRuneInString(text[end:])
+		if isWordRune(after) {
+			return false
+		}
+	}
+	return true
+}
+
+func isWordRune(r rune) bool {
+	return r == '_' || unicode.IsLetter(r) || unicode.IsNumber(r) || unicode.IsMark(r)
 }
 
 // readLine assembles one logical line from ReadSlice fragments. When a limit

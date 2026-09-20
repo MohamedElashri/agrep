@@ -41,18 +41,19 @@ agrep --json "احمد" people.txt
 ```
 
 ```json
-{"line":12,"text":"أحمد وصل مبكرا"}
+{"line":12,"text":"أحمد وصل مبكرا","spans":[[0,8]]}
 ```
 
 For a file input, JSON adds the optional `file` field without changing the
 existing `line` and `text` fields:
 
 ```json
-{"file":"people.txt","line":12,"text":"أحمد وصل مبكرا"}
+{"file":"people.txt","line":12,"text":"أحمد وصل مبكرا","spans":[[0,8]]}
 ```
 
-When context output is requested, neighboring records additionally contain
-`"context":true`; selected records omit that field.
+`spans` are half-open byte ranges in the original `text`, not in its normalized
+comparison key. When context output is requested, neighboring records contain
+`"context":true` and omit `spans`.
 
 Recursive and multi-file search supports the familiar grep controls:
 
@@ -61,6 +62,9 @@ agrep -r -n --include='*.txt' "مدرسه" books/
 agrep -i -e "أحمد" -e "STRASSE" corpus-a.txt corpus-b.txt
 agrep -C 2 "كتاب" chapter.txt
 agrep -l "المدينه" texts/*.txt
+agrep -w --color=always "كتاب" chapter.txt
+agrep --regex '^مدرس[هة]$' words.txt
+agrep -o "مدينه" people.txt
 ```
 
 Recursive searches honor `.gitignore` files by default. Use `--no-ignore` to
@@ -69,6 +73,23 @@ the parallel file workers. Multi-file results are emitted in deterministic
 input/walk order even when workers finish out of order. `-c`, `-l`, `-L`,
 `-v`, `-A`, `-B`, `-C`, `-H`, and `-h` follow their grep meanings. Run
 `agrep --help` for the full list.
+
+`--regex` evaluates expressions over normalized text. Patterns themselves are
+not normalized because doing so would corrupt regex syntax. For example, `ة` in
+a pattern does not match under the default profile, which folds input `ة` to
+`ه`; use `--profile=strict` when that distinction belongs in the expression.
+With `--regex`, `-i` follows Go regexp's Unicode simple-fold semantics; literal
+`-i` uses full default case folding and therefore also handles expansions such
+as `ß` to `ss`.
+
+`-w` checks word boundaries in the original text after mapping normalized
+matches back. `-o` likewise prints the exact original spelling, including
+tashkil and tatweel inside the mapped span.
+
+Color defaults to `auto`, honors `NO_COLOR` and `TERM=dumb`, and wraps colored
+Arabic spans in Unicode RTL isolates. Use `--no-bidi-isolate` if a terminal
+renders those controls visibly. See [docs/TERMINALS.md](docs/TERMINALS.md) for
+the byte layout and verification matrix.
 
 Exit status is `0` for one or more matches, `1` for no matches, and `2` for an
 argument, input, or output error. Streaming output can be partial after an
@@ -137,10 +158,13 @@ The CLI is a thin wrapper around three importable packages:
   profile's normalization) and `arabic.Profile`, with `Profile.Normalize`
   for any of the five built-in presets (`ProfileSearch`, `ProfileStrict`,
   `ProfileLoose`, `ProfileLucene`, `ProfileCAMeL`) or a custom combination
-  of rules. No CLI or I/O dependency.
+  of rules. `Profile.NormalizeMapped` returns the identical key plus a byte
+  index back to the original string; `arabic.MapSpan` handles expansion
+  boundaries correctly. No CLI or I/O dependency.
 - [`match`](match): `match.NewLiteral(query string, p arabic.Profile)
   (Matcher, error)` builds a reusable matcher from a query and a profile
   once; `match.NewLiterals` adds repeatable patterns and Unicode case folding.
+  `match.NewRegex` evaluates regular expressions over normalized text.
   `Matcher.FindAll(normalized string) []Span` finds every occurrence in text
   normalized under that same profile.
 - [`scan`](scan): `scan.Search(r io.Reader, m match.Matcher, opts

@@ -292,6 +292,25 @@ engine's NFD-first pass can decompose them instead, the same divergence
 noted for `ProfileLucene` above and for the same reason. Again, the
 fidelity claim covers Arabic-script normalization only.
 
+## Offset mapping
+
+`Profile.NormalizeMapped` produces the same key as `Profile.Normalize` plus an
+index from every normalized byte boundary to its originating byte in the
+original string. Mapping follows all transformation layers: presentation-form
+expansion, NFD decomposition and canonical ordering, profile folds, stripped
+marks, and the final canonical reorder after removed starters.
+
+All bytes in one original combining cluster share that cluster's start. This
+keeps the index monotonic when NFD reorders marks and makes highlights retain
+tashkil attached to their boundary letters. A one-to-many expansion such as
+`ﻻ` maps both `ل` and `ا` to the ligature's start. Call `arabic.MapSpan` rather
+than indexing the end directly; it advances across equal-origin bytes so even a
+match for only `ل` covers the complete original ligature.
+
+The CLI constructs this mapping only for output modes that need positions
+(`-o`, color, JSON spans, and `-w`). Ordinary line selection continues through
+the allocation-free normalization and boolean-matcher path.
+
 [lucene-src]: https://github.com/apache/lucene/blob/main/lucene/analysis/common/src/java/org/apache/lucene/analysis/ar/ArabicNormalizer.java
 [camel-tools]: https://github.com/CAMeL-Lab/camel_tools
 [camel-normalize]: https://github.com/CAMeL-Lab/camel_tools/blob/master/camel_tools/utils/normalize.py

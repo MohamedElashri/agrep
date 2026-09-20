@@ -320,110 +320,76 @@ func (p Profile) Normalize(s string) string {
 	var lastBase rune // 0627, 0648, or 064A if that was just written; else 0
 
 	for offset, r := range decomposed {
-		drop := false
 		out := r
-
+		drop := false
 		switch {
-		case r == 'ٓ' || r == 'ٔ' || r == 'ٕ': // combining madda/hamza-above/hamza-below
+		case r == 'ٓ' || r == 'ٔ' || r == 'ٕ':
 			switch {
-			case lastBase == 'ا': // follows alef: آ, أ, or إ
+			case lastBase == 'ا':
 				drop = p.FoldAlefHamza
-			case r == 'ٔ' && (lastBase == 'و' || lastBase == 'ي'): // follows waw/yeh: ؤ or ئ
+			case r == 'ٔ' && (lastBase == 'و' || lastBase == 'ي'):
 				drop = p.FoldHamzaSeat
-			default: // unrecognized context: treat as an ordinary mark
+			default:
 				drop = p.StripTashkil && tashkilScopeMatches(p.TashkilScope, r)
 			}
-		case r == 'ـ': // Tatweel
+		case r == 'ـ':
 			drop = p.StripTatweel
-		case r == 'ٱ': // Alef wasla
+		case r == 'ٱ':
 			if p.FoldAlefWasla {
 				out = 'ا'
 			}
-		case r == 'ة': // Ta marbuta
+		case r == 'ة':
 			if p.FoldTaMarbuta {
 				out = 'ه'
 			}
-		case r == 'ى': // Alef maksura
+		case r == 'ى':
 			if p.FoldAlefMaksura {
 				out = 'ي'
 			}
-		case r == '‌' || r == '‍': // ZWNJ, ZWJ
+		case r == '‌' || r == '‍':
 			drop = p.StripJoiners
-		case isBidiControl(r): // ALM, LRM/RLM, LRE/RLE/PDF/LRO/RLO, LRI/RLI/FSI/PDI
+		case isBidiControl(r):
 			drop = p.StripBidi
-		case r >= 'ۖ' && r <= 'ۭ': // Quranic annotation/recitation marks
+		case r >= 'ۖ' && r <= 'ۭ':
 			drop = p.StripQuranic
-		case r >= '٠' && r <= '٩': // Arabic-Indic digit
+		case r >= '٠' && r <= '٩':
 			if p.FoldDigits {
 				out = '0' + (r - '٠')
 			}
-		case r >= '۰' && r <= '۹': // Extended Arabic-Indic (Persian/Urdu) digit
+		case r >= '۰' && r <= '۹':
 			if p.FoldDigits {
 				out = '0' + (r - '۰')
 			}
-		case r == '،' || r == '٬': // Arabic comma, Arabic thousands separator
+		case r == '،' || r == '٬':
 			if p.FoldPunctuation {
 				out = ','
 			}
-		case r == '؛': // Arabic semicolon
+		case r == '؛':
 			if p.FoldPunctuation {
 				out = ';'
 			}
-		case r == '؟': // Arabic question mark
+		case r == '؟':
 			if p.FoldPunctuation {
 				out = '?'
 			}
-		case r == '٪': // Arabic percent sign
+		case r == '٪':
 			if p.FoldPunctuation {
 				out = '%'
 			}
-		case r == '٫' || r == '۔': // Arabic decimal separator, Arabic full stop
+		case r == '٫' || r == '۔':
 			if p.FoldPunctuation {
 				out = '.'
 			}
-		default: // includes bare ا, و, ي themselves (out == r, never dropped)
+		default:
 			drop = p.StripTashkil && tashkilScopeMatches(p.TashkilScope, r)
 		}
 
-		// Decide what context the *next* iteration sees, from how this one
-		// actually turned out:
 		var nextBase rune
 		switch {
 		case !drop && (out == 'ا' || out == 'و' || out == 'ي'):
-			// A real alef/waw/yeh reached the output, whether it started
-			// that way or a fold above (wasla→alef, alef-maksura→yeh) just
-			// produced it. It can carry a following hamza/madda mark. This
-			// has to key off the OUTPUT, not the input rune r, or folding
-			// wasla to ا would make a trailing hamza mark resolve as
-			// "unrecognized context" on this pass while a second
-			// Normalize call, seeing the already-folded ا directly,
-			// would recognize it, breaking idempotence.
 			nextBase = out
 		case drop || unicode.Is(unicode.Mn, r):
-			// Either this rune vanished from the output (tatweel, a
-			// stripped mark, a folded-away hamza mark), so whatever came
-			// before and after it become adjacent in the result and any
-			// in-progress context must survive across it; or it's a
-			// combining mark that was kept but isn't itself a base letter.
-			// Either way, preserve whatever context was already in
-			// effect. (Canonical ordering sorts every harakat mark
-			// (combining class 27-35) before a hamza/madda mark, 230, or
-			// 220 for hamza-below, on the same base, so a vowel mark
-			// commonly sits between a hamza-carrying letter and its hamza
-			// mark: NFD(أُ) is alef, damma, hamza-above, not alef,
-			// hamza-above, damma. Without preserving context across a
-			// dropped separator too, removing e.g. a tatweel that used to
-			// sit between a base and its later-arriving hamza mark would
-			// make the two ends of a fresh Normalize call disagree with
-			// what a second call, now seeing them truly adjacent, would
-			// resolve, which is the same idempotence break in a different
-			// guise.)
 			nextBase = lastBase
-		default:
-			// An ordinary, kept, non-mark, non-alef/waw/yeh character (a
-			// different letter, space, digit, punctuation, ...) breaks any
-			// in-progress cluster.
-			nextBase = 0
 		}
 		lastBase = nextBase
 
@@ -463,4 +429,80 @@ func (p Profile) Normalize(s string) string {
 		out = norm.NFD.String(out)
 	}
 	return out
+}
+
+// transformRune mirrors Normalize's deliberately inlined hot loop for mapped
+// normalization. FuzzNormalizeMappedMatchesNormalize checks the two paths over
+// the full profile flag space so this performance duplication cannot drift.
+func (p Profile) transformRune(r, lastBase rune) (out rune, drop bool, nextBase rune) {
+	out = r
+	switch {
+	case r == 'ٓ' || r == 'ٔ' || r == 'ٕ':
+		switch {
+		case lastBase == 'ا':
+			drop = p.FoldAlefHamza
+		case r == 'ٔ' && (lastBase == 'و' || lastBase == 'ي'):
+			drop = p.FoldHamzaSeat
+		default:
+			drop = p.StripTashkil && tashkilScopeMatches(p.TashkilScope, r)
+		}
+	case r == 'ـ':
+		drop = p.StripTatweel
+	case r == 'ٱ':
+		if p.FoldAlefWasla {
+			out = 'ا'
+		}
+	case r == 'ة':
+		if p.FoldTaMarbuta {
+			out = 'ه'
+		}
+	case r == 'ى':
+		if p.FoldAlefMaksura {
+			out = 'ي'
+		}
+	case r == '‌' || r == '‍':
+		drop = p.StripJoiners
+	case isBidiControl(r):
+		drop = p.StripBidi
+	case r >= 'ۖ' && r <= 'ۭ':
+		drop = p.StripQuranic
+	case r >= '٠' && r <= '٩':
+		if p.FoldDigits {
+			out = '0' + (r - '٠')
+		}
+	case r >= '۰' && r <= '۹':
+		if p.FoldDigits {
+			out = '0' + (r - '۰')
+		}
+	case r == '،' || r == '٬':
+		if p.FoldPunctuation {
+			out = ','
+		}
+	case r == '؛':
+		if p.FoldPunctuation {
+			out = ';'
+		}
+	case r == '؟':
+		if p.FoldPunctuation {
+			out = '?'
+		}
+	case r == '٪':
+		if p.FoldPunctuation {
+			out = '%'
+		}
+	case r == '٫' || r == '۔':
+		if p.FoldPunctuation {
+			out = '.'
+		}
+	default:
+		drop = p.StripTashkil && tashkilScopeMatches(p.TashkilScope, r)
+	}
+
+	switch {
+	case !drop && (out == 'ا' || out == 'و' || out == 'ي'):
+		nextBase = out
+	case drop || unicode.Is(unicode.Mn, r):
+		nextBase = lastBase
+	}
+	return out, drop, nextBase
 }
