@@ -1,5 +1,7 @@
 # agrep
 
+[![CI](https://github.com/MohamedElashri/agrep/actions/workflows/ci.yml/badge.svg)](https://github.com/MohamedElashri/agrep/actions/workflows/ci.yml)
+
 `agrep` (Arabic Grep) searches UTF-8 text while tolerating Arabic tashkil,
 tatweel, canonical Unicode differences, and common orthographic variants. It is
 small enough for shell use and has a stable JSON Lines mode for tool-calling
@@ -70,6 +72,24 @@ empty after normalization is rejected.
 go test ./...
 go test -race ./...
 go vet ./...
+gofmt -l .
+```
+
+`normalize.go` and `search.go` also have fuzz targets that assert normalization
+never panics, always produces valid UTF-8, and is idempotent, and that `search`
+never panics on arbitrary input:
+
+```sh
+go test -run '^$' -fuzz FuzzNormalizeIdempotent -fuzztime 30s .
+go test -run '^$' -fuzz FuzzNormalizeValidUTF8 -fuzztime 30s .
+go test -run '^$' -fuzz FuzzNormalizeNoPanic -fuzztime 30s .
+go test -run '^$' -fuzz FuzzSearchNoPanic -fuzztime 30s .
+```
+
+A benchmark baseline lives in `bench_test.go`:
+
+```sh
+go test -run '^$' -bench . -benchmem .
 ```
 
 ## Releases

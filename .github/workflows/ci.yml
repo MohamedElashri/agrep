@@ -45,8 +45,43 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      - name: Static analysis (staticcheck)
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          staticcheck ./...
+
       - name: Test with race detector
         run: go test -race -count=1 ./...
+
+  fuzz:
+    name: Fuzz (regression corpus + short run)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      # Each -fuzz run first replays the checked-in corpus under testdata/fuzz
+      # (so a past crasher never regresses silently), then spends the rest of
+      # fuzztime exploring new inputs.
+      - name: Fuzz normalize idempotence
+        run: go test -run '^$' -fuzz '^FuzzNormalizeIdempotent$' -fuzztime 20s .
+
+      - name: Fuzz normalize UTF-8 validity
+        run: go test -run '^$' -fuzz '^FuzzNormalizeValidUTF8$' -fuzztime 20s .
+
+      - name: Fuzz normalize/query no panic
+        run: go test -run '^$' -fuzz '^FuzzNormalizeNoPanic$' -fuzztime 20s .
+
+      - name: Fuzz search no panic
+        run: go test -run '^$' -fuzz '^FuzzSearchNoPanic$' -fuzztime 20s .
 
   release-check:
     name: Build release artifacts
@@ -70,4 +105,3 @@ jobs:
           distribution: goreleaser
           version: v2.18.2
           args: release --snapshot --clean
-

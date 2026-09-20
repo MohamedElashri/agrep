@@ -96,10 +96,8 @@ func readLine(reader *bufio.Reader, maxBytes uint64, lineNumber int64) (line str
 
 func trimLineEnding(line string) string {
 	if strings.HasSuffix(line, "\n") {
-		line = line[:len(line)-1]
-		if strings.HasSuffix(line, "\r") {
-			line = line[:len(line)-1]
-		}
+		line = strings.TrimSuffix(line, "\n")
+		line = strings.TrimSuffix(line, "\r")
 	}
 	return line
 }

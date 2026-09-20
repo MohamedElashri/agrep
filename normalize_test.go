@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"testing"
+	"unicode/utf8"
+)
 
 func TestNormalizeArabic(t *testing.T) {
 	tests := []struct {
@@ -34,4 +37,72 @@ func TestNormalizeQueryRejectsEmptyKeys(t *testing.T) {
 			t.Fatalf("normalizeQuery(%q) returned no error", query)
 		}
 	}
+}
+
+func addNormalizeSeeds(f *testing.F) {
+	seeds := []string{
+		"اَلْعَرَبِيَّةُ",
+		"العربية",
+		"Go و Python مُمْتَاز",
+		"العــربية",
+		"آأإٱ",
+		"مسؤول فئة",
+		"على",
+		"",
+		"َُِّْ",
+		"café",
+		"ﻻ", // Arabic ligature lam-alef (compatibility form).
+		"ﷲ", // Allah ligature.
+	}
+	for _, s := range seeds {
+		f.Add(s)
+	}
+}
+
+// FuzzNormalizeIdempotent checks that applying normalizeArabic twice is the
+// same as applying it once: the output of normalization is already a fixed
+// point of normalization.
+func FuzzNormalizeIdempotent(f *testing.F) {
+	addNormalizeSeeds(f)
+
+	f.Fuzz(func(t *testing.T, s string) {
+		if !utf8.ValidString(s) {
+			t.Skip()
+		}
+		once := normalizeArabic(s)
+		twice := normalizeArabic(once)
+		if once != twice {
+			t.Fatalf("not idempotent: normalizeArabic(%q) = %q, but normalizeArabic(that) = %q", s, once, twice)
+		}
+	})
+}
+
+// FuzzNormalizeValidUTF8 checks that valid UTF-8 input always normalizes to
+// valid UTF-8 output.
+func FuzzNormalizeValidUTF8(f *testing.F) {
+	addNormalizeSeeds(f)
+
+	f.Fuzz(func(t *testing.T, s string) {
+		if !utf8.ValidString(s) {
+			t.Skip()
+		}
+		got := normalizeArabic(s)
+		if !utf8.ValidString(got) {
+			t.Fatalf("normalizeArabic(%q) produced invalid UTF-8: %q", s, got)
+		}
+	})
+}
+
+// FuzzNormalizeNoPanic checks that normalizeArabic and normalizeQuery never
+// panic, including on byte sequences that are not valid UTF-8 (the fuzzer's
+// string inputs are arbitrary bytes, not guaranteed-valid text).
+func FuzzNormalizeNoPanic(f *testing.F) {
+	addNormalizeSeeds(f)
+	f.Add(string([]byte{0xff, 0xfe, 0x00}))
+	f.Add(string([]byte{'a', 0x80, 'b'}))
+
+	f.Fuzz(func(t *testing.T, s string) {
+		_ = normalizeArabic(s)
+		_, _ = normalizeQuery(s)
+	})
 }

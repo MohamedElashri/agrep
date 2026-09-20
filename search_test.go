@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"strings"
 	"testing"
@@ -79,4 +80,27 @@ func TestSearchNoMatch(t *testing.T) {
 	if err != nil || found || called {
 		t.Fatalf("found=%v called=%v err=%v", found, called, err)
 	}
+}
+
+// FuzzSearchNoPanic feeds arbitrary input bytes and an arbitrary query
+// through search and only requires that it returns (an error is fine; a
+// panic is not). It exercises the reader/line-assembly path in readLine
+// together with normalization, which the other fuzz targets don't reach.
+func FuzzSearchNoPanic(f *testing.F) {
+	f.Add([]byte("هذِهِ مَدْرَسَةٌ\r\nمدرسه\n"), "مدرسه", uint64(0))
+	f.Add([]byte("plain\nascii\ntext\n"), "text", uint64(0))
+	f.Add([]byte{'x', 0xff, '\n'}, "x", uint64(0))
+	f.Add([]byte("one\ntwo\n"), "", uint64(0))
+	f.Add([]byte("12345\n"), "1", uint64(4))
+	f.Add([]byte(""), "q", uint64(0))
+
+	f.Fuzz(func(t *testing.T, data []byte, query string, maxLineBytes uint64) {
+		// Cap maxLineBytes so a fuzzer-discovered huge value can't turn this
+		// into a slow/OOM test run instead of a correctness one.
+		maxLineBytes %= 1 << 20
+
+		_, _ = search(bytes.NewReader(data), query, searchOptions{MaxLineBytes: maxLineBytes}, func(Match) error {
+			return nil
+		})
+	})
 }
