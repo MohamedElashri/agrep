@@ -63,6 +63,9 @@ jobs:
       - name: Test with race detector
         run: go test -race -count=1 ./...
 
+      - name: Test optional document formats
+        run: go test -count=1 -tags formats ./...
+
   fuzz:
     name: Fuzz (regression corpus + short run)
     runs-on: ubuntu-latest
@@ -119,6 +122,12 @@ jobs:
 
       - name: Fuzz mapped search no panic
         run: go test -run '^$' -fuzz '^FuzzSearchMappedNoPanic$' -fuzztime 20s ./scan
+
+      - name: Fuzz automatic input decoding
+        run: go test -run '^$' -fuzz '^FuzzAutoDecodeValidUTF8$' -fuzztime 20s ./internal/decode
+
+      - name: Fuzz transliteration mapping
+        run: go test -run '^$' -fuzz '^FuzzTransliterationValidMapping$' -fuzztime 20s ./internal/translit
 
   release-check:
     name: Build release artifacts

@@ -15,6 +15,10 @@ import (
 	"github.com/MohamedElashri/agrep/match"
 )
 
+// ErrInvalidUTF8 identifies input that must be decoded before Search. The CLI
+// uses it to suggest --encoding=auto while library callers can use errors.Is.
+var ErrInvalidUTF8 = errors.New("scan: input is not valid UTF-8")
+
 // Span is a half-open byte range in Match.Text. Its array representation keeps
 // the stable JSON form compact: [start,end].
 type Span [2]int
@@ -95,7 +99,7 @@ func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) erro
 
 		lineNumber++
 		if !utf8.ValidString(line) {
-			return false, fmt.Errorf("line %d is not valid UTF-8", lineNumber)
+			return false, fmt.Errorf("%w on line %d", ErrInvalidUTF8, lineNumber)
 		}
 
 		matched := false

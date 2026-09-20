@@ -12,6 +12,9 @@ import (
 	"sync"
 
 	"github.com/MohamedElashri/agrep/arabic"
+	"github.com/MohamedElashri/agrep/internal/decode"
+	"github.com/MohamedElashri/agrep/internal/inputformat"
+	"github.com/MohamedElashri/agrep/internal/translit"
 	"github.com/MohamedElashri/agrep/internal/walk"
 	"github.com/MohamedElashri/agrep/match"
 	"github.com/MohamedElashri/agrep/scan"
@@ -36,6 +39,8 @@ Search options:
       --exclude GLOB              skip matching files/directories (repeatable)
       --no-ignore                 do not honor .gitignore files
       --threads N                 file-search workers (default: available CPUs)
+      --encoding NAME             utf8|cp1256|iso-8859-6|utf16le|utf16be|auto
+      --translit NAME             buckwalter|arabtex|iso233 query input
 
 Output options:
   -j, --json                      emit one JSON object per selected/context line
@@ -51,6 +56,7 @@ Output options:
   -o, --only-matching             print only original-text matched spans
       --color WHEN                auto|always|never (default: auto)
       --no-bidi-isolate           omit RTL isolates around colored Arabic spans
+      --translit-out              render emitted text as Buckwalter
 
 Normalization options:
       --max-line-bytes N          reject longer logical lines (0 means unlimited)
@@ -167,6 +173,11 @@ type cliOptions struct {
 	onlyMatching      bool
 	color             colorMode
 	noBidiIsolate     bool
+	encodingName      string
+	inputEncoding     decode.Encoding
+	translitName      string
+	translitScheme    translit.Scheme
+	translitOut       bool
 }
 
 // profileOverrides are the --keep-*/--fold-* flags applied on top of
@@ -199,6 +210,21 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if err != nil {
 		fmt.Fprintf(stderr, "agrep: %v\n", err)
 		return 2
+	}
+	opts.inputEncoding, err = decode.Parse(opts.encodingName)
+	if err != nil {
+		fmt.Fprintf(stderr, "agrep: %v\n", err)
+		return 2
+	}
+	if opts.translitName != "" {
+		opts.translitScheme, err = translit.Parse(opts.translitName)
+		if err != nil {
+			fmt.Fprintf(stderr, "agrep: %v\n", err)
+			return 2
+		}
+		for i := range queries {
+			queries[i] = translit.FromLatin(queries[i], opts.translitScheme)
+		}
 	}
 	profile, err := resolveProfile(opts.profileName, opts.overrides)
 	if err != nil {
@@ -361,11 +387,20 @@ func searchInputs(inputs []inputSpec, stdin io.Reader, stdout io.Writer, matcher
 
 func searchOne(input inputSpec, stdin io.Reader, output io.Writer, matcher match.Matcher, opts cliOptions, showFilenames, highlight bool) (found, qualifies bool, err error) {
 	reader := stdin
-	var file *os.File
+	selectedEncoding := opts.inputEncoding
+	var file io.ReadCloser
 	if !input.stdin {
-		file, err = os.Open(input.path)
+		var extractedUTF8 bool
+		file, extractedUTF8, err = inputformat.Open(input.path)
 		if err != nil {
 			return false, false, fmt.Errorf("%s: %w", input.path, err)
+		}
+		if extractedUTF8 {
+			if opts.inputEncoding != decode.UTF8 && opts.inputEncoding != decode.Auto {
+				_ = file.Close()
+				return false, false, fmt.Errorf("%s: extracted document text is UTF-8 and cannot use --encoding=%s", input.path, opts.inputEncoding)
+			}
+			selectedEncoding = decode.UTF8
 		}
 		reader = file
 		defer func() {
@@ -373,6 +408,10 @@ func searchOne(input inputSpec, stdin io.Reader, output io.Writer, matcher match
 				err = closeErr
 			}
 		}()
+	}
+	reader, _, err = decode.NewReader(reader, selectedEncoding)
+	if err != nil {
+		return false, false, fmt.Errorf("%s: %w", input.label, err)
 	}
 
 	contextLines := !opts.countOnly && !opts.filesWithMatches && !opts.filesWithoutMatch
@@ -399,6 +438,12 @@ func searchOne(input inputSpec, stdin io.Reader, output io.Writer, matcher match
 	if opts.jsonOutput {
 		emit = jsonEmitter(output)
 	}
+	if opts.translitOut {
+		next := emit
+		emit = func(mt scan.Match) error {
+			return next(transliterateMatch(mt))
+		}
+	}
 	found, err = scan.Search(reader, matcher, searchOpts, func(mt scan.Match) error {
 		if !mt.Context {
 			count++
@@ -409,6 +454,9 @@ func searchOne(input inputSpec, stdin io.Reader, output io.Writer, matcher match
 		return nil
 	})
 	if err != nil {
+		if selectedEncoding == decode.UTF8 && errors.Is(err, scan.ErrInvalidUTF8) {
+			return false, false, fmt.Errorf("%s: %w; try --encoding=auto", input.label, err)
+		}
 		return false, false, fmt.Errorf("%s: %w", input.label, err)
 	}
 
@@ -425,6 +473,20 @@ func searchOne(input inputSpec, stdin io.Reader, output io.Writer, matcher match
 		_, err = fmt.Fprintln(output, input.label)
 	}
 	return found, !found, err
+}
+
+func transliterateMatch(mt scan.Match) scan.Match {
+	rendered, boundaries := translit.ToLatin(mt.Text, translit.Buckwalter)
+	spans := make([]scan.Span, 0, len(mt.Spans))
+	for _, span := range mt.Spans {
+		start, end, ok := translit.MapSpan(boundaries, span[0], span[1])
+		if ok {
+			spans = append(spans, scan.Span{start, end})
+		}
+	}
+	mt.Text = rendered
+	mt.Spans = spans
+	return mt
 }
 
 // resolveProfile selects a named preset and then applies o on top of it.
@@ -521,6 +583,9 @@ func parseArgs(args []string, stdout, stderr io.Writer) (cliOptions, []string, i
 	fs.BoolVar(&opts.onlyMatching, "only-matching", false, "print only matched spans")
 	fs.Var(&opts.color, "color", "auto, always, or never")
 	fs.BoolVar(&opts.noBidiIsolate, "no-bidi-isolate", false, "omit RTL isolates around colored spans")
+	fs.StringVar(&opts.encodingName, "encoding", "utf8", "input encoding")
+	fs.StringVar(&opts.translitName, "translit", "", "transliterated query scheme")
+	fs.BoolVar(&opts.translitOut, "translit-out", false, "render output as Buckwalter")
 	fs.Uint64Var(&opts.maxLineBytes, "max-line-bytes", 0, "maximum logical line size")
 	fs.StringVar(&opts.profileName, "profile", "search", "normalization profile")
 	fs.BoolVar(&opts.overrides.keepHamza, "keep-hamza", false, "don't fold hamza/madda variants")
@@ -570,6 +635,10 @@ func parseArgs(args []string, stdout, stderr io.Writer) (cliOptions, []string, i
 	}
 	if opts.onlyMatching && (opts.invertMatch || modes > 0 || opts.beforeContext > 0 || opts.afterContext > 0) {
 		fmt.Fprintln(stderr, "agrep: --only-matching cannot be combined with invert, summary, or context modes")
+		return opts, nil, 2
+	}
+	if opts.regex && opts.translitName != "" {
+		fmt.Fprintln(stderr, "agrep: --translit cannot be combined with --regex")
 		return opts, nil, 2
 	}
 	return opts, fs.Args(), -1

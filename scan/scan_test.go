@@ -77,7 +77,7 @@ func TestSearchLineLimitAllowsCRLFAtLimit(t *testing.T) {
 func TestSearchRejectsInvalidUTF8(t *testing.T) {
 	m := mustLiteral(t, "x")
 	_, err := Search(strings.NewReader(string([]byte{'x', 0xff, '\n'})), m, Options{}, func(Match) error { return nil })
-	if err == nil || !strings.Contains(err.Error(), "UTF-8") {
+	if err == nil || !errors.Is(err, ErrInvalidUTF8) || !strings.Contains(err.Error(), "UTF-8") {
 		t.Fatalf("error = %v", err)
 	}
 }

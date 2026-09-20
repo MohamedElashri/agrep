@@ -7,6 +7,12 @@ tatweel, canonical Unicode differences, and common orthographic variants. It is
 small enough for shell use and has a stable JSON Lines mode for tool-calling
 agents.
 
+Search Arabic from a Latin keyboard without an IME:
+
+```sh
+agrep --translit=buckwalter "ktAb" corpus.txt     # finds كتاب
+```
+
 ## Install
 
 Download the archive for your operating system and architecture from the
@@ -65,6 +71,8 @@ agrep -l "المدينه" texts/*.txt
 agrep -w --color=always "كتاب" chapter.txt
 agrep --regex '^مدرس[هة]$' words.txt
 agrep -o "مدينه" people.txt
+agrep --encoding=auto "مدينه" legacy.txt
+agrep --translit-out --translit=buckwalter "ktAb" corpus.txt
 ```
 
 Recursive searches honor `.gitignore` files by default. Use `--no-ignore` to
@@ -85,6 +93,12 @@ as `ß` to `ss`.
 `-w` checks word boundaries in the original text after mapping normalized
 matches back. `-o` likewise prints the exact original spelling, including
 tashkil and tatweel inside the mapped span.
+
+Legacy CP1256, ISO-8859-6, and UTF-16 input can be decoded with `--encoding`.
+`--translit=buckwalter|arabtex|iso233` converts a Latin query to Arabic before
+matching, while `--translit-out` renders output as Buckwalter and remaps spans
+to that rendered text. See [docs/INPUT.md](docs/INPUT.md) for detection rules,
+mapping scope, and the optional HTML/EPUB build.
 
 Color defaults to `auto`, honors `NO_COLOR` and `TERM=dumb`, and wraps colored
 Arabic spans in Unicode RTL isolates. Use `--no-bidi-isolate` if a terminal
@@ -118,9 +132,10 @@ folds such as `ß` to `ss`. Because normalization is intentionally lossy, it can
 produce false positives where distinct Arabic spellings collapse to the same
 comparison key.
 
-Input and query must be valid UTF-8. Logical lines have no built-in size ceiling;
-use `--max-line-bytes N` when processing untrusted input. A query that becomes
-empty after normalization is rejected.
+Queries must be valid UTF-8. Input defaults to UTF-8 and can instead be decoded
+with `--encoding`. Logical lines have no built-in size ceiling; use
+`--max-line-bytes N` when processing untrusted input. The limit is measured in
+decoded UTF-8 bytes. A query that becomes empty after normalization is rejected.
 
 ### Profiles
 

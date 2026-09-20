@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"os"
@@ -9,6 +10,10 @@ import (
 	"testing"
 
 	"github.com/MohamedElashri/agrep/arabic"
+	"golang.org/x/text/encoding"
+	"golang.org/x/text/encoding/charmap"
+	unicodeencoding "golang.org/x/text/encoding/unicode"
+	"golang.org/x/text/transform"
 )
 
 func TestRunJSONLines(t *testing.T) {
@@ -403,12 +408,106 @@ func TestRunColorFullyVoweledQuranicLine(t *testing.T) {
 	}
 }
 
+func TestRunLegacyEncodingsUseDecodedUTF8Spans(t *testing.T) {
+	const input = "هذه مَدِينَة جميلة\n"
+	tests := []struct {
+		name    string
+		flag    string
+		encoder *encoding.Encoder
+	}{
+		{"cp1256", "cp1256", charmap.Windows1256.NewEncoder()},
+		{"iso-8859-6", "iso-8859-6", charmap.ISO8859_6.NewEncoder()},
+		{"utf16le", "utf16le", unicodeencoding.UTF16(unicodeencoding.LittleEndian, unicodeencoding.UseBOM).NewEncoder()},
+		{"utf16be", "utf16be", unicodeencoding.UTF16(unicodeencoding.BigEndian, unicodeencoding.IgnoreBOM).NewEncoder()},
+		{"auto cp1256", "auto", charmap.Windows1256.NewEncoder()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			raw, _, err := transform.Bytes(tt.encoder, []byte(input))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var stdout, stderr strings.Builder
+			code := run([]string{"--json", "--encoding=" + tt.flag, "مدينه"}, bytes.NewReader(raw), &stdout, &stderr)
+			want := "{\"line\":1,\"text\":\"هذه مَدِينَة جميلة\",\"spans\":[[7,23]]}\n"
+			if code != 0 || stdout.String() != want || stderr.Len() != 0 {
+				t.Fatalf("code=%d stdout=%q want=%q stderr=%q", code, stdout.String(), want, stderr.String())
+			}
+		})
+	}
+}
+
+func TestRunInvalidUTF8SuggestsAutoEncoding(t *testing.T) {
+	var stdout, stderr strings.Builder
+	code := run([]string{"x"}, bytes.NewReader([]byte{'x', 0xff, '\n'}), &stdout, &stderr)
+	if code != 2 || !strings.Contains(stderr.String(), "--encoding=auto") {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+}
+
+func TestRunTransliteratedQueries(t *testing.T) {
+	for _, tt := range []struct {
+		scheme string
+		query  string
+	}{
+		{"buckwalter", "ktAb"},
+		{"arabtex", "kitAb"},
+		{"iso233", "kitāb"},
+	} {
+		t.Run(tt.scheme, func(t *testing.T) {
+			var stdout, stderr strings.Builder
+			code := run([]string{"--translit=" + tt.scheme, tt.query}, strings.NewReader("هذا كتاب\n"), &stdout, &stderr)
+			if code != 0 || stdout.String() != "هذا كتاب\n" || stderr.Len() != 0 {
+				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+			}
+		})
+	}
+}
+
+func TestRunTranslitOutputRemapsSpans(t *testing.T) {
+	var stdout, stderr strings.Builder
+	code := run([]string{"--json", "--translit-out", "كتاب"}, strings.NewReader("كتاب\n"), &stdout, &stderr)
+	want := "{\"line\":1,\"text\":\"ktAb\",\"spans\":[[0,4]]}\n"
+	if code != 0 || stdout.String() != want || stderr.Len() != 0 {
+		t.Fatalf("JSON: code=%d stdout=%q want=%q stderr=%q", code, stdout.String(), want, stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	code = run([]string{"-o", "--translit-out", "كتاب"}, strings.NewReader("هذا كتاب جيد\n"), &stdout, &stderr)
+	if code != 0 || stdout.String() != "ktAb\n" || stderr.Len() != 0 {
+		t.Fatalf("only matching: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	code = run([]string{"--color=always", "--translit-out", "كتاب"}, strings.NewReader("كتاب\n"), &stdout, &stderr)
+	want = ansiMatchStart + "ktAb" + ansiMatchEnd + "\n"
+	if code != 0 || stdout.String() != want || stderr.Len() != 0 {
+		t.Fatalf("color: code=%d stdout=%q want=%q stderr=%q", code, stdout.String(), want, stderr.String())
+	}
+}
+
 func TestRunRejectsInvalidPhase6Options(t *testing.T) {
 	tests := [][]string{
 		{"--regex", "["},
 		{"--color=bogus", "x"},
 		{"-o", "-v", "x"},
 		{"-o", "-A", "1", "x"},
+	}
+	for _, args := range tests {
+		var stdout, stderr strings.Builder
+		if code := run(args, strings.NewReader("x\n"), &stdout, &stderr); code != 2 {
+			t.Fatalf("args=%v code=%d; want 2 (stdout=%q stderr=%q)", args, code, stdout.String(), stderr.String())
+		}
+	}
+}
+
+func TestRunRejectsInvalidPhase7Options(t *testing.T) {
+	tests := [][]string{
+		{"--encoding=unknown", "x"},
+		{"--translit=unknown", "x"},
+		{"--regex", "--translit=buckwalter", "x"},
 	}
 	for _, args := range tests {
 		var stdout, stderr strings.Builder
