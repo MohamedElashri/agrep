@@ -20,8 +20,8 @@ func TestExpandPresentationForms(t *testing.T) {
 		{"presentation form at start", "ﻻمرحبا", "لامرحبا"},
 		{"presentation form at end", "مرحباﻻ", "مرحبالا"},
 		{"two ligatures back to back", "ﻻﻻ", "لالا"},
-		// FDFD (Bismillah ligature) has no UCD decomposition at all — see
-		// gen/main.go's package comment — so it is deliberately left
+		// FDFD (Bismillah ligature) has no UCD decomposition at all (see
+		// gen/main.go's package comment), so it is deliberately left
 		// unexpanded, unlike CAMeL Tools' hardcoded phrase substitution.
 		{"Bismillah ligature has no decomposition: unchanged", "﷽", "﷽"},
 	}
@@ -51,7 +51,7 @@ func TestExpandPresentationFormsIdempotent(t *testing.T) {
 func TestPresentationFormDefectFixed(t *testing.T) {
 	// "لا يوجد كتاب" ("there is no book"), typed with the lam-alef ligature
 	// and each letter of "كتاب" in the contextual form real shaping would
-	// choose (kaf initial, teh medial, alef final, beh isolated) — the way
+	// choose (kaf initial, teh medial, alef final, beh isolated), the way
 	// a PDF text layer commonly encodes Arabic.
 	line := "ﻻ يوجد ﻛﺘﺎﺏ"
 	query := "لا يوجد كتاب" // لا يوجد كتاب, plain letters

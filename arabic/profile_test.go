@@ -185,7 +185,7 @@ func TestProfileCAMeL(t *testing.T) {
 
 // profileBit indexes a Profile bool field for profileFromBits/bitsFromProfile.
 // Adding a field in a later phase (Langs, Rasm, ...) means adding one more
-// constant here and one more line in each of those two functions — an
+// constant here and one more line in each of those two functions. An
 // explicit, growing positional-bool parameter list on every fuzz function
 // does not scale the same way.
 type profileBit uint
@@ -256,11 +256,11 @@ func addProfileFuzzSeeds(f *testing.F) {
 
 // FuzzProfileNormalizeIdempotent fuzzes over the *entire* flag space, not
 // just the five named presets: every bool combination plus every int value
-// of TashkilScope, in or out of its defined range — Normalize must degrade
+// of TashkilScope, in or out of its defined range: Normalize must degrade
 // safely and stay idempotent even for a scope Validate() would reject; that
 // contract belongs to Normalize, not just to the valid-scope subset. This
 // is what actually exercises the hamza lookback logic (and, as it turned
-// out, the mark-reordering-after-a-merge case — see the final
+// out, the mark-reordering-after-a-merge case; see the final
 // re-normalization step in Normalize) across combinations no named preset
 // happens to cover.
 func FuzzProfileNormalizeIdempotent(f *testing.F) {

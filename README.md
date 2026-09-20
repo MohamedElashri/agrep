@@ -23,7 +23,8 @@ go build -trimpath -ldflags "-s -w -X main.version=$(git describe --tags --alway
 ## Usage
 
 ```text
-agrep [options] <query> [file]
+agrep [options] <query> [path ...]
+agrep [options] -e <query>... [path ...]
 ```
 
 Human-readable output is the default:
@@ -43,6 +44,32 @@ agrep --json "احمد" people.txt
 {"line":12,"text":"أحمد وصل مبكرا"}
 ```
 
+For a file input, JSON adds the optional `file` field without changing the
+existing `line` and `text` fields:
+
+```json
+{"file":"people.txt","line":12,"text":"أحمد وصل مبكرا"}
+```
+
+When context output is requested, neighboring records additionally contain
+`"context":true`; selected records omit that field.
+
+Recursive and multi-file search supports the familiar grep controls:
+
+```sh
+agrep -r -n --include='*.txt' "مدرسه" books/
+agrep -i -e "أحمد" -e "STRASSE" corpus-a.txt corpus-b.txt
+agrep -C 2 "كتاب" chapter.txt
+agrep -l "المدينه" texts/*.txt
+```
+
+Recursive searches honor `.gitignore` files by default. Use `--no-ignore` to
+search ignored files, `--exclude` to remove paths, and `--threads N` to control
+the parallel file workers. Multi-file results are emitted in deterministic
+input/walk order even when workers finish out of order. `-c`, `-l`, `-L`,
+`-v`, `-A`, `-B`, `-C`, `-H`, and `-h` follow their grep meanings. Run
+`agrep --help` for the full list.
+
 Exit status is `0` for one or more matches, `1` for no matches, and `2` for an
 argument, input, or output error. Streaming output can be partial after an
 output failure, so consumers must honor the final exit status.
@@ -53,8 +80,8 @@ Both query and input lines are normalized with Unicode NFD, then, under the
 default profile (`search`):
 
 - Arabic presentation forms (contextual letter shapes, ligatures like `ﻻ`
-  and `ﷲ`) are expanded to plain letters — this is what lets `agrep` match
-  Arabic extracted from a PDF, which is usually encoded this way;
+  and `ﷲ`) are expanded to plain letters, which is what lets `agrep` match
+  Arabic extracted from a PDF, since PDFs usually encode text this way;
 - all Unicode non-spacing marks (`Mn`) and Arabic tatweel are removed;
 - `أ`, `إ`, `آ`, and `ٱ` become `ا`;
 - `ؤ` becomes `و`, and `ئ` becomes `ي`;
@@ -63,10 +90,12 @@ default profile (`search`):
 - ZWNJ/ZWJ, bidi control characters, and Quranic annotation marks are
   removed.
 
-The original, unnormalized matching line is emitted. Matching is literal,
-case-sensitive, and substring-based after normalization. Because normalization
-is intentionally lossy, it can produce false positives where distinct Arabic
-spellings collapse to the same comparison key.
+The original, unnormalized matching line is emitted. Matching is literal and
+substring-based after normalization. It is case-sensitive unless `-i` is used;
+that option applies Unicode default case folding, including multi-codepoint
+folds such as `ß` to `ss`. Because normalization is intentionally lossy, it can
+produce false positives where distinct Arabic spellings collapse to the same
+comparison key.
 
 Input and query must be valid UTF-8. Logical lines have no built-in size ceiling;
 use `--max-line-bytes N` when processing untrusted input. A query that becomes
@@ -104,16 +133,17 @@ against.
 
 The CLI is a thin wrapper around three importable packages:
 
-- [`arabic`](arabic) — `arabic.Normalize(s string) string` (the default
+- [`arabic`](arabic): `arabic.Normalize(s string) string` (the default
   profile's normalization) and `arabic.Profile`, with `Profile.Normalize`
   for any of the five built-in presets (`ProfileSearch`, `ProfileStrict`,
   `ProfileLoose`, `ProfileLucene`, `ProfileCAMeL`) or a custom combination
   of rules. No CLI or I/O dependency.
-- [`match`](match) — `match.NewLiteral(query string, p arabic.Profile)
+- [`match`](match): `match.NewLiteral(query string, p arabic.Profile)
   (Matcher, error)` builds a reusable matcher from a query and a profile
-  once; `Matcher.FindAll(normalized string) []Span` finds every occurrence
-  in text normalized under that same profile.
-- [`scan`](scan) — `scan.Search(r io.Reader, m match.Matcher, opts
+  once; `match.NewLiterals` adds repeatable patterns and Unicode case folding.
+  `Matcher.FindAll(normalized string) []Span` finds every occurrence in text
+  normalized under that same profile.
+- [`scan`](scan): `scan.Search(r io.Reader, m match.Matcher, opts
   scan.Options, onMatch func(scan.Match) error) (bool, error)` streams
   arbitrary-length logical lines from a reader, normalizes each with the
   matcher's own profile, and reports the ones that match.
@@ -134,6 +164,9 @@ go get github.com/MohamedElashri/agrep/arabic
 
 ## Development
 
+Development and CI use Go 1.27.1. The only runtime module dependency is
+`golang.org/x/text`, currently v0.42.0.
+
 ```sh
 go test ./...
 go test -race ./...
@@ -149,13 +182,13 @@ go generate ./arabic/...
 ```
 
 `go generate` should be a no-op unless `arabic/gen/UnicodeData.txt` or
-`arabic/gen/main.go` changed — run it and check `git diff` after touching
-either. See [arabic/gen/SOURCE.md](arabic/gen/SOURCE.md) for provenance and
+`arabic/gen/main.go` changed; run it and check `git diff` after touching
+either. See [arabic/gen/README.md](arabic/gen/README.md) for provenance and
 how to pick up a newer Unicode version.
 
 `arabic`, `match`, and `scan` also have fuzz targets that assert normalization
 never panics, always produces valid UTF-8, and is idempotent (across the
-*entire* `Profile` flag space, not just the five named presets — this is
+*entire* `Profile` flag space, not just the five named presets: this is
 what actually found the subtle NFD/canonical-ordering interactions
 documented in `arabic/profile.go`'s `Normalize` doc comment), and that
 matching and line-scanning never panic on arbitrary input:
@@ -169,7 +202,8 @@ go test -run '^$' -fuzz FuzzSearchNoPanic -fuzztime 30s ./scan
 ```
 
 Benchmark baselines live alongside each package (`arabic/bench_test.go`,
-`scan/bench_test.go`):
+`scan/bench_test.go`, `internal/walk/bench_test.go`). The walker benchmarks
+include a same-fixture `rg --files` comparison when ripgrep is installed:
 
 ```sh
 go test -run '^$' -bench . -benchmem ./...

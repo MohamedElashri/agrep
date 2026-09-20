@@ -21,9 +21,9 @@ To pick up a newer Unicode version:
    file.
 2. Update the version/date above.
 3. Run `go generate ./arabic/...` from the module root and review the diff
-   to `../tables.go` — a new Unicode version can add, but should never
+   to `../tables.go`. A new Unicode version can add, but should never
    remove, presentation-form entries in the ranges this generator reads
    (U+FB50–U+FDFF, U+FE70–U+FEFF), so a shrinking table is worth
    double-checking before committing.
-4. Re-run the full test suite, including the fuzz targets — a changed table
+4. Re-run the full test suite, including the fuzz targets. A changed table
    doesn't change the *normalization algorithm*, but it's cheap insurance.

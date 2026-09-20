@@ -50,7 +50,7 @@ func TestNewLiteralProfile(t *testing.T) {
 // TestFindAllUsesItsOwnProfileNotSearch is the direct regression test for
 // why Matcher exposes Profile() at all: with a non-default profile, the
 // query's own normalized key must reflect THAT profile, not
-// arabic.Normalize's fixed ProfileSearch default — otherwise a caller that
+// arabic.Normalize's fixed ProfileSearch default: otherwise a caller that
 // (wrongly) normalized the haystack with the wrong profile would get a
 // silently mismatched comparison.
 func TestFindAllUsesItsOwnProfileNotSearch(t *testing.T) {
@@ -112,6 +112,47 @@ func TestFindAllNoMatch(t *testing.T) {
 	}
 	if spans := m.FindAll("present"); spans != nil {
 		t.Fatalf("FindAll(no match) = %v; want nil", spans)
+	}
+}
+
+func TestNewLiteralsMatchesAnyQueryInTextOrder(t *testing.T) {
+	m, err := NewLiterals([]string{"beta", "alpha"}, arabic.ProfileSearch, false)
+	if err != nil {
+		t.Fatalf("NewLiterals: %v", err)
+	}
+	spans := m.FindAll("alpha beta")
+	want := []Span{{0, 5}, {6, 10}}
+	if len(spans) != len(want) || spans[0] != want[0] || spans[1] != want[1] {
+		t.Fatalf("FindAll = %v; want %v", spans, want)
+	}
+}
+
+func TestNewLiteralsUnicodeCaseFold(t *testing.T) {
+	m, err := NewLiterals([]string{"STRASSE"}, arabic.ProfileSearch, true)
+	if err != nil {
+		t.Fatalf("NewLiterals: %v", err)
+	}
+	normalized := arabic.ProfileSearch.Normalize("Straße")
+	spans := m.FindAll(normalized)
+	if len(spans) != 1 || spans[0] != (Span{Start: 0, End: len(normalized)}) {
+		t.Fatalf("FindAll Unicode-folded text = %v; want original normalized range", spans)
+	}
+}
+
+func TestUnicodeCaseFoldExpansionMapsPartialMatchToWholeRune(t *testing.T) {
+	m, err := NewLiterals([]string{"s"}, arabic.ProfileSearch, true)
+	if err != nil {
+		t.Fatalf("NewLiterals: %v", err)
+	}
+	spans := m.FindAll("ß")
+	if len(spans) != 2 || spans[0] != (Span{0, len("ß")}) || spans[1] != (Span{0, len("ß")}) {
+		t.Fatalf("FindAll(ß) = %v; want both folded matches mapped to the whole rune", spans)
+	}
+}
+
+func TestNewLiteralsRejectsNoQueries(t *testing.T) {
+	if _, err := NewLiterals(nil, arabic.ProfileSearch, false); err == nil {
+		t.Fatal("NewLiterals(nil) returned no error")
 	}
 }
 

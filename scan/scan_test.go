@@ -103,6 +103,56 @@ func TestSearchNoMatch(t *testing.T) {
 	}
 }
 
+func TestSearchInvertAndContext(t *testing.T) {
+	m := mustLiteral(t, "hit")
+	var got []Match
+	found, err := Search(strings.NewReader("hit\none\ntwo\nhit\nfour\n"), m, Options{
+		File:          "input.txt",
+		InvertMatch:   true,
+		BeforeContext: 1,
+		AfterContext:  1,
+	}, func(mt Match) error {
+		got = append(got, mt)
+		return nil
+	})
+	if err != nil || !found {
+		t.Fatalf("Search = found %v, err %v", found, err)
+	}
+	if len(got) != 5 {
+		t.Fatalf("got %d records: %+v", len(got), got)
+	}
+	if got[0].Line != 1 || !got[0].Context || got[1].Line != 2 || got[1].Context {
+		t.Fatalf("unexpected first group: %+v", got[:2])
+	}
+	if got[0].File != "input.txt" {
+		t.Fatalf("file = %q", got[0].File)
+	}
+}
+
+func TestSearchContextGroupBoundaries(t *testing.T) {
+	m := mustLiteral(t, "hit")
+	var got []Match
+	_, err := Search(strings.NewReader("hit\na\nb\nc\nhit\n"), m, Options{
+		AfterContext: 1,
+	}, func(mt Match) error {
+		got = append(got, mt)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 3 || !got[2].GroupStart {
+		t.Fatalf("records = %+v; want second match to begin a new group", got)
+	}
+}
+
+func TestSearchRejectsNegativeContext(t *testing.T) {
+	m := mustLiteral(t, "hit")
+	if _, err := Search(strings.NewReader("hit\n"), m, Options{BeforeContext: -1}, func(Match) error { return nil }); err == nil {
+		t.Fatal("Search with negative context returned no error")
+	}
+}
+
 // FuzzSearchNoPanic feeds arbitrary input bytes, an arbitrary query, and an
 // arbitrary profile through match.NewLiteral and Search, and only requires
 // that it returns (an error is fine; a panic is not). It exercises the

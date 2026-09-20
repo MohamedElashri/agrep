@@ -93,9 +93,9 @@ jobs:
       # These three fuzz across the *entire* Profile flag space (every bool
       # combination x every TashkilScope value), not just the five named
       # presets. FuzzProfileNormalizeIdempotent in particular is what found
-      # every hamza/canonical-ordering interaction bug during development —
-      # see the Normalize doc comment in arabic/profile.go — so it gets the
-      # longest budget here.
+      # every hamza/canonical-ordering interaction bug during development
+      # (see the Normalize doc comment in arabic/profile.go), so it gets
+      # the longest budget here.
       - name: Fuzz profile normalize idempotence (full flag space)
         run: go test -run '^$' -fuzz '^FuzzProfileNormalizeIdempotent$' -fuzztime 45s ./arabic
 

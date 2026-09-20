@@ -12,27 +12,59 @@ import (
 	"github.com/MohamedElashri/agrep/match"
 )
 
-// Match is one matching logical line. Text excludes the CR/LF line ending.
+// Match is one selected or context logical line. Text excludes the CR/LF line
+// ending. Context identifies neighboring output rather than a selected line.
 type Match struct {
-	Line int64  `json:"line"`
-	Text string `json:"text"`
+	File       string `json:"file,omitempty"`
+	Line       int64  `json:"line"`
+	Text       string `json:"text"`
+	Context    bool   `json:"context,omitempty"`
+	GroupStart bool   `json:"-"`
 }
 
 // Options controls how Search reads input.
 type Options struct {
 	// MaxLineBytes is measured after removing CR/LF. Zero means unlimited.
 	MaxLineBytes uint64
+	// File is copied into emitted Match values. Empty identifies stdin or an
+	// unnamed reader and is omitted from JSON.
+	File string
+	// InvertMatch selects lines the matcher does not find.
+	InvertMatch bool
+	// BeforeContext and AfterContext emit neighboring lines around selected
+	// lines. Context lines have Match.Context set.
+	BeforeContext int
+	AfterContext  int
 }
 
 // Search reads arbitrary-length logical lines from r without
-// bufio.Scanner's token ceiling, and reports every line whose normalized
-// text m finds. It preserves the original, unnormalized text of every
-// matching line.
+// bufio.Scanner's token ceiling, and reports every line whose normalized text
+// m selects, optionally inverted, plus requested context. It preserves the
+// original, unnormalized text of every emitted line.
 func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) error) (bool, error) {
+	if opts.BeforeContext < 0 || opts.AfterContext < 0 {
+		return false, errors.New("scan: context values must be non-negative")
+	}
 	reader := bufio.NewReader(r)
 	profile := m.Profile()
 	var lineNumber int64
 	found := false
+	before := make([]Match, 0, opts.BeforeContext)
+	afterRemaining := 0
+	var lastEmitted int64
+	emitted := false
+	contextEnabled := opts.BeforeContext > 0 || opts.AfterContext > 0
+
+	emit := func(mt Match, context bool) error {
+		mt.Context = context
+		mt.GroupStart = contextEnabled && emitted && mt.Line > lastEmitted+1
+		if err := onMatch(mt); err != nil {
+			return err
+		}
+		emitted = true
+		lastEmitted = mt.Line
+		return nil
+	}
 
 	for {
 		line, done, err := readLine(reader, opts.MaxLineBytes, lineNumber+1)
@@ -48,11 +80,45 @@ func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) erro
 			return false, fmt.Errorf("line %d is not valid UTF-8", lineNumber)
 		}
 
-		if spans := m.FindAll(profile.Normalize(line)); len(spans) > 0 {
+		normalized := profile.Normalize(line)
+		matched := false
+		if fast, ok := m.(interface{ Matches(string) bool }); ok {
+			matched = fast.Matches(normalized)
+		} else {
+			matched = len(m.FindAll(normalized)) > 0
+		}
+		selected := matched != opts.InvertMatch
+		mt := Match{File: opts.File, Line: lineNumber, Text: line}
+		if selected {
 			found = true
-			if err := onMatch(Match{Line: lineNumber, Text: line}); err != nil {
+			for _, prior := range before {
+				if prior.Line > lastEmitted {
+					if err := emit(prior, true); err != nil {
+						return false, err
+					}
+				}
+			}
+			before = before[:0]
+			if err := emit(mt, false); err != nil {
 				return false, err
 			}
+			afterRemaining = opts.AfterContext
+			continue
+		}
+
+		if afterRemaining > 0 {
+			if err := emit(mt, true); err != nil {
+				return false, err
+			}
+			afterRemaining--
+			continue
+		}
+		if opts.BeforeContext > 0 {
+			if len(before) == opts.BeforeContext {
+				copy(before, before[1:])
+				before = before[:len(before)-1]
+			}
+			before = append(before, mt)
 		}
 	}
 

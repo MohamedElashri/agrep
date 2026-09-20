@@ -3,6 +3,8 @@ package main
 import (
 	"errors"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -147,7 +149,7 @@ func TestResolveProfile(t *testing.T) {
 				foldDigits: true, foldPunctuation: true,
 			},
 			// StripTatweel and FoldAlefMaksura have no --keep-* flag, so
-			// they must survive from the preset untouched — asserting the
+			// they must survive from the preset untouched: asserting the
 			// full Profile here (not just the touched fields) is what
 			// catches that kind of omission.
 			withOverride(arabic.ProfileSearch, func(p *arabic.Profile) {
@@ -223,4 +225,121 @@ func TestRunProfileFlagChangesMatching(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRunRepeatedPatternsAndUnicodeIgnoreCase(t *testing.T) {
+	var stdout, stderr strings.Builder
+	code := run([]string{"-i", "-e", "STRASSE", "-e", "missing"}, strings.NewReader("Straße\nother\n"), &stdout, &stderr)
+	if code != 0 || stdout.String() != "Straße\n" || stderr.Len() != 0 {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+}
+
+func TestRunInvertCount(t *testing.T) {
+	var stdout, stderr strings.Builder
+	code := run([]string{"-v", "-c", "hit"}, strings.NewReader("hit\nmiss\nother\n"), &stdout, &stderr)
+	if code != 0 || stdout.String() != "2\n" || stderr.Len() != 0 {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+}
+
+func TestRunContextAndGroups(t *testing.T) {
+	var stdout, stderr strings.Builder
+	input := "hit\na\nb\nc\nhit\n"
+	code := run([]string{"-n", "-A", "1", "hit"}, strings.NewReader(input), &stdout, &stderr)
+	want := "1:hit\n2-a\n--\n5:hit\n"
+	if code != 0 || stdout.String() != want || stderr.Len() != 0 {
+		t.Fatalf("code=%d stdout=%q want=%q stderr=%q", code, stdout.String(), want, stderr.String())
+	}
+}
+
+func TestRunMultipleFilesKeepsArgumentOrder(t *testing.T) {
+	root := t.TempDir()
+	a := filepath.Join(root, "a.txt")
+	b := filepath.Join(root, "b.txt")
+	writeTestFile(t, a, "hit a\n")
+	writeTestFile(t, b, "hit b\n")
+
+	var stdout, stderr strings.Builder
+	code := run([]string{"--threads=2", "hit", b, a}, strings.NewReader(""), &stdout, &stderr)
+	want := b + ":hit b\n" + a + ":hit a\n"
+	if code != 0 || stdout.String() != want || stderr.Len() != 0 {
+		t.Fatalf("code=%d stdout=%q want=%q stderr=%q", code, stdout.String(), want, stderr.String())
+	}
+}
+
+func TestRunRecursiveHonorsIgnoreAndInclude(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, ".gitignore"), "ignored.txt\n")
+	writeTestFile(t, filepath.Join(root, "found.txt"), "hit\n")
+	writeTestFile(t, filepath.Join(root, "ignored.txt"), "hit\n")
+	writeTestFile(t, filepath.Join(root, "skip.md"), "hit\n")
+
+	var stdout, stderr strings.Builder
+	code := run([]string{"-r", "--include=*.txt", "hit", root}, strings.NewReader(""), &stdout, &stderr)
+	want := filepath.Join(root, "found.txt") + ":hit\n"
+	if code != 0 || stdout.String() != want || stderr.Len() != 0 {
+		t.Fatalf("code=%d stdout=%q want=%q stderr=%q", code, stdout.String(), want, stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	code = run([]string{"-r", "--no-ignore", "--include=*.txt", "hit", root}, strings.NewReader(""), &stdout, &stderr)
+	want += filepath.Join(root, "ignored.txt") + ":hit\n"
+	if code != 0 || stdout.String() != want || stderr.Len() != 0 {
+		t.Fatalf("no-ignore: code=%d stdout=%q want=%q stderr=%q", code, stdout.String(), want, stderr.String())
+	}
+}
+
+func TestRunFileSelectionModesAndFilenameOverrides(t *testing.T) {
+	root := t.TempDir()
+	hit := filepath.Join(root, "hit.txt")
+	miss := filepath.Join(root, "miss.txt")
+	writeTestFile(t, hit, "needle\n")
+	writeTestFile(t, miss, "haystack\n")
+
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"files with matches", []string{"-l", "needle", hit, miss}, hit + "\n"},
+		{"files without matches", []string{"-L", "needle", hit, miss}, miss + "\n"},
+		{"suppress filename", []string{"-h", "needle", hit, miss}, "needle\n"},
+		{"force filename", []string{"-H", "needle", hit}, hit + ":needle\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr strings.Builder
+			code := run(tt.args, strings.NewReader(""), &stdout, &stderr)
+			if code != 0 || stdout.String() != tt.want || stderr.Len() != 0 {
+				t.Fatalf("code=%d stdout=%q want=%q stderr=%q", code, stdout.String(), tt.want, stderr.String())
+			}
+		})
+	}
+}
+
+func TestRunJSONFileField(t *testing.T) {
+	name := filepath.Join(t.TempDir(), "input.txt")
+	writeTestFile(t, name, "needle\n")
+	var stdout, stderr strings.Builder
+	code := run([]string{"--json", "needle", name}, strings.NewReader(""), &stdout, &stderr)
+	want := "{\"file\":" + strconvQuote(name) + ",\"line\":1,\"text\":\"needle\"}\n"
+	if code != 0 || stdout.String() != want || stderr.Len() != 0 {
+		t.Fatalf("code=%d stdout=%q want=%q stderr=%q", code, stdout.String(), want, stderr.String())
+	}
+}
+
+func writeTestFile(t *testing.T, name, contents string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(name), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(name, []byte(contents), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func strconvQuote(s string) string {
+	return `"` + strings.ReplaceAll(s, `"`, `\"`) + `"`
 }

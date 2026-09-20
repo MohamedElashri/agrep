@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strconv"
+	"strings"
 
 	"github.com/MohamedElashri/agrep/scan"
 )
@@ -11,18 +13,35 @@ import (
 func jsonEmitter(w io.Writer) func(scan.Match) error {
 	encoder := json.NewEncoder(w)
 	encoder.SetEscapeHTML(false)
-	return func(m scan.Match) error { return encoder.Encode(m) }
+	return func(m scan.Match) error {
+		if m.File == "(standard input)" {
+			m.File = ""
+		}
+		return encoder.Encode(m)
+	}
 }
 
-func humanEmitter(w io.Writer, lineNumbers bool) func(scan.Match) error {
-	if lineNumbers {
-		return func(m scan.Match) error {
-			_, err := fmt.Fprintf(w, "%d:%s\n", m.Line, m.Text)
-			return err
-		}
-	}
+func humanEmitter(w io.Writer, lineNumbers, filenames bool) func(scan.Match) error {
 	return func(m scan.Match) error {
-		_, err := fmt.Fprintln(w, m.Text)
+		if m.GroupStart {
+			if _, err := fmt.Fprintln(w, "--"); err != nil {
+				return err
+			}
+		}
+		separator := ":"
+		if m.Context {
+			separator = "-"
+		}
+		var prefix strings.Builder
+		if filenames {
+			prefix.WriteString(m.File)
+			prefix.WriteString(separator)
+		}
+		if lineNumbers {
+			prefix.WriteString(strconv.FormatInt(m.Line, 10))
+			prefix.WriteString(separator)
+		}
+		_, err := fmt.Fprintln(w, prefix.String()+m.Text)
 		return err
 	}
 }

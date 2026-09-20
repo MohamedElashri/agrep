@@ -147,7 +147,7 @@ func TestFoldPunctuation(t *testing.T) {
 // Phase 3: dropping one of them between a hamza-carrying letter and its
 // hamza mark must not break the fold decision, the same way a dropped
 // tatweel doesn't (see the "drop || Mn" branch in Normalize's
-// context-tracking switch) — this is what actually distinguishes "was this
+// context-tracking switch): this is what actually distinguishes "was this
 // bug fixed generally" from "was it fixed only for the tatweel case that
 // happened to be fuzzed first".
 func TestPhase4RulesComposeWithHamzaLogic(t *testing.T) {
@@ -165,8 +165,8 @@ func TestPhase4RulesComposeWithHamzaLogic(t *testing.T) {
 			withJoiner, withoutJoiner, "ا")
 	}
 
-	// And with StripJoiners off, the ZWJ survives and — being neither Mn
-	// nor alef/waw/yeh — correctly breaks the context, so the hamza mark
+	// And with StripJoiners off, the ZWJ survives and, being neither Mn
+	// nor alef/waw/yeh, correctly breaks the context, so the hamza mark
 	// now falls to "unrecognized context" and is only removed by
 	// StripTashkil, not by FoldAlefHamza.
 	kept := Profile{FoldAlefHamza: true, StripJoiners: false}.Normalize("ا" + zwj + "ٔ")

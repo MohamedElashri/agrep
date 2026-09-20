@@ -12,7 +12,7 @@ import (
 type TashkilScope int
 
 const (
-	// TashkilAllMn removes every Unicode non-spacing mark (Mn) — agrep's
+	// TashkilAllMn removes every Unicode non-spacing mark (Mn): agrep's
 	// original, default behavior. It also catches the hamza/madda marks
 	// below when they appear outside their recognized alef/waw/yeh
 	// context (see the note on FoldAlefHamza).
@@ -21,7 +21,7 @@ const (
 	// TashkilLuceneHarakat removes exactly the eight codepoints Apache
 	// Lucene's ArabicNormalizer treats as harakat: fathatan, dammatan,
 	// kasratan, fatha, damma, kasra, shadda, and sukun. It leaves other
-	// combining marks — superscript alef, Quranic annotation marks —
+	// combining marks (superscript alef, Quranic annotation marks)
 	// untouched, matching Lucene's narrower, closed set.
 	TashkilLuceneHarakat
 
@@ -83,14 +83,14 @@ func isBidiControl(r rune) bool {
 // decomposes أ, آ, إ, ؤ, and ئ into a base letter (ا, و, or ي) followed by a
 // standalone combining mark: COMBINING MADDA ABOVE (U+0653), COMBINING
 // HAMZA ABOVE (U+0654), or COMBINING HAMZA BELOW (U+0655). Normalize always
-// decomposes with NFD first, so those marks — not the precomposed letters —
+// decomposes with NFD first, so those marks, not the precomposed letters,
 // are what it actually sees. FoldAlefHamza and FoldHamzaSeat decide whether
 // each mark is dropped (folding the letter to its bare base) or kept
 // (preserving the distinction) when it immediately follows its usual base
 // letter; StripTashkil/TashkilScope never overrides that decision. This
 // matters because a mark left in place is what makes "preserve every
 // orthographic distinction" (see ProfileStrict) actually true even when
-// StripTashkil is also on — without this split, NFD decomposition plus a
+// StripTashkil is also on: without this split, NFD decomposition plus a
 // blanket Mn-strip would silently re-merge hamza spellings regardless of
 // FoldAlefHamza/FoldHamzaSeat.
 //
@@ -101,7 +101,7 @@ func isBidiControl(r rune) bool {
 type Profile struct {
 	// StripTashkil removes combining marks selected by TashkilScope. It
 	// never removes the hamza/madda marks covered by FoldAlefHamza or
-	// FoldHamzaSeat when they're in their recognized context — see above.
+	// FoldHamzaSeat when they're in their recognized context; see above.
 	StripTashkil bool
 	// TashkilScope selects which marks StripTashkil removes. The zero
 	// value, TashkilAllMn, has no effect when StripTashkil is false.
@@ -129,14 +129,14 @@ type Profile struct {
 	FoldAlefMaksura bool
 
 	// FoldPresentation expands Arabic presentation-form codepoints (Arabic
-	// Presentation Forms-A, U+FB50-U+FDFF, and Forms-B, U+FE70-U+FEFF —
+	// Presentation Forms-A, U+FB50-U+FDFF, and Forms-B, U+FE70-U+FEFF:
 	// contextual letter shapes, ligatures such as ﻻ and ﷲ, and a few
 	// standalone-diacritic display forms) to the plain letter sequence
 	// each one stands for, via a table generated from the Unicode
-	// Character Database (see tables.go and gen/SOURCE.md). Unlike the
+	// Character Database (see tables.go and gen/README.md). Unlike the
 	// other folds in this struct, this one resolves an alternate
 	// *encoding* of the same text rather than merging distinct spellings,
-	// so it runs even under ProfileStrict — see the Profile doc comment's
+	// so it runs even under ProfileStrict; see the Profile doc comment's
 	// note on NFD for why an analogous unconditional step (canonical
 	// decomposition) already applies regardless of profile. It is off for
 	// ProfileLucene/ProfileCAMeL only because neither real library does
@@ -166,7 +166,7 @@ type Profile struct {
 	// start-of-rub-el-hizb, small waw/yeh, place-of-sajdah) that
 	// TashkilScope's Mn-based matching would never catch on its own, so
 	// this is a dedicated, category-agnostic range check rather than a
-	// TashkilScope value — see docs/NORMALIZATION.md.
+	// TashkilScope value; see docs/NORMALIZATION.md.
 	StripQuranic bool
 }
 
@@ -174,12 +174,12 @@ var (
 	// ProfileSearch is agrep's original, default behavior: every fold
 	// below is enabled and every Unicode non-spacing mark is stripped, and
 	// (as of Phase 4) presentation forms are expanded and joiners, bidi
-	// controls, and Quranic annotation marks are stripped — see the
+	// controls, and Quranic annotation marks are stripped. See the
 	// deliberate exception to "never silently change" documented in
 	// plan.md's Phase 4 completion notes: this fixes the presentation-form
 	// defect flagged from the very first version of this project's plan,
 	// done explicitly and tested, not silently. Digit and punctuation
-	// folding stay off by default — see ProfileLoose.
+	// folding stay off by default; see ProfileLoose.
 	ProfileSearch = Profile{
 		StripTashkil:     true,
 		TashkilScope:     TashkilAllMn,
@@ -200,7 +200,7 @@ var (
 	// ta-marbuta vs. heh, and alef-maksura vs. yeh are all kept apart.
 	// "Preserves" means the normalized key stays distinguishable from a
 	// differently-spelled key, not that it is byte-identical to the
-	// original spelling — a kept hamza mark stays in its NFD-decomposed
+	// original spelling: a kept hamza mark stays in its NFD-decomposed
 	// form (base letter + standalone combining mark) rather than being
 	// recomposed to its precomposed codepoint. Presentation forms are
 	// still expanded (see FoldPresentation's doc: that's an encoding fix,
@@ -218,8 +218,8 @@ var (
 	}
 
 	// ProfileLoose enables every fold this build defines. As of Phase 4,
-	// that means digit and punctuation folding — the two rules still
-	// marked "Opt-in" in plan.md's Phase 4 rule table — are what actually
+	// that means digit and punctuation folding (the two rules still
+	// marked "Opt-in" in plan.md's Phase 4 rule table) are what actually
 	// make it diverge from ProfileSearch; everything else the two share.
 	// Phase 5/7/9's language and Rasm folding will add further divergence.
 	ProfileLoose = Profile{
@@ -242,13 +242,13 @@ var (
 	// ProfileLucene reproduces Apache Lucene's ArabicNormalizer: folds the
 	// madda/hamza-above/hamza-below alef group (but not wasla), ta-marbuta,
 	// and alef-maksura; strips tatweel and exactly the eight codepoints
-	// Lucene treats as harakat. It does not fold hamza-seated waw/yeh —
+	// Lucene treats as harakat. It does not fold hamza-seated waw/yeh:
 	// Lucene's normalizer has no case for either. Verified against
 	// ArabicNormalizer.java from the Apache Lucene repository; see
 	// docs/NORMALIZATION.md for the exact source reference. This
 	// implementation's NFD-based engine may decompose non-Arabic
 	// precomposed characters (e.g. Latin é) that real Lucene, which never
-	// decomposes anything, would leave untouched — the fidelity claim
+	// decomposes anything, would leave untouched. The fidelity claim
 	// covers Arabic-script normalization only. FoldPresentation,
 	// StripJoiners, StripBidi, FoldDigits, FoldPunctuation, and
 	// StripQuranic (Phase 4) all stay off: Lucene's normalizer does none
@@ -268,7 +268,7 @@ var (
 	// from normalize_alef_ar (which, unlike Lucene, does fold wasla),
 	// normalize_alef_maksura_ar, normalize_teh_marbuta_ar, and dediac_ar's
 	// AR_DIAC_CHARSET (Lucene's eight harakat plus superscript alef). It
-	// does not strip tatweel or fold hamza-seated waw/yeh — CAMeL Tools'
+	// does not strip tatweel or fold hamza-seated waw/yeh: CAMeL Tools'
 	// normalize module has no public helper for either. Verified against
 	// normalize.py, dediac.py, and charsets.py from the CAMeL Tools
 	// repository; see docs/NORMALIZATION.md. As with ProfileLucene, the
@@ -281,7 +281,7 @@ var (
 	// them are part of the normalize_alef_ar/dediac_ar family this profile
 	// reproduces (NFKC-based presentation-form folding lives in CAMeL
 	// Tools' separate normalize_unicode function, deliberately excluded
-	// here — see the Phase 3 completion notes in plan.md for why).
+	// here; see the Phase 3 completion notes in plan.md for why).
 	ProfileCAMeL = Profile{
 		StripTashkil:    true,
 		TashkilScope:    TashkilCAMeLDiac,
@@ -390,24 +390,24 @@ func (p Profile) Normalize(s string) string {
 		var nextBase rune
 		switch {
 		case !drop && (out == 'ا' || out == 'و' || out == 'ي'):
-			// A real alef/waw/yeh reached the output — whether it started
+			// A real alef/waw/yeh reached the output, whether it started
 			// that way or a fold above (wasla→alef, alef-maksura→yeh) just
 			// produced it. It can carry a following hamza/madda mark. This
 			// has to key off the OUTPUT, not the input rune r, or folding
 			// wasla to ا would make a trailing hamza mark resolve as
 			// "unrecognized context" on this pass while a second
-			// Normalize call — seeing the already-folded ا directly —
+			// Normalize call, seeing the already-folded ا directly,
 			// would recognize it, breaking idempotence.
 			nextBase = out
 		case drop || unicode.Is(unicode.Mn, r):
-			// Either this rune vanished from the output — tatweel, a
-			// stripped mark, a folded-away hamza mark — so whatever came
+			// Either this rune vanished from the output (tatweel, a
+			// stripped mark, a folded-away hamza mark), so whatever came
 			// before and after it become adjacent in the result and any
 			// in-progress context must survive across it; or it's a
 			// combining mark that was kept but isn't itself a base letter.
 			// Either way, preserve whatever context was already in
-			// effect. (Canonical ordering sorts every harakat mark —
-			// combining class 27-35 — before a hamza/madda mark, 230, or
+			// effect. (Canonical ordering sorts every harakat mark
+			// (combining class 27-35) before a hamza/madda mark, 230, or
 			// 220 for hamza-below, on the same base, so a vowel mark
 			// commonly sits between a hamza-carrying letter and its hamza
 			// mark: NFD(أُ) is alef, damma, hamza-above, not alef,
@@ -415,7 +415,7 @@ func (p Profile) Normalize(s string) string {
 			// dropped separator too, removing e.g. a tatweel that used to
 			// sit between a base and its later-arriving hamza mark would
 			// make the two ends of a fresh Normalize call disagree with
-			// what a second call — now seeing them truly adjacent — would
+			// what a second call, now seeing them truly adjacent, would
 			// resolve, which is the same idempotence break in a different
 			// guise.)
 			nextBase = lastBase
@@ -449,7 +449,7 @@ func (p Profile) Normalize(s string) string {
 		return decomposed
 	}
 
-	// Dropping a rune with combining class 0 (a "starter" — tatweel, or a
+	// Dropping a rune with combining class 0 (a "starter": tatweel, or a
 	// letter this profile folded away) can merge two previously-separate
 	// runs of combining marks that canonical ordering never needed to sort
 	// against each other while the starter still kept them apart. The loop

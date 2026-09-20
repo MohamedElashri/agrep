@@ -7,11 +7,11 @@ import "strings"
 // everything else untouched. It runs before NFD decomposition in
 // Profile.Normalize: NFD does not touch presentation forms at all (they
 // carry only *compatibility* decompositions, which NFD ignores), so
-// without this pass they survive normalization completely unfolded — the
+// without this pass they survive normalization completely unfolded: the
 // defect this rule exists to fix.
 //
 // The result of an expansion is always ordinary, non-presentation-form
-// Arabic text (plain letters, and occasionally a plain space — see
+// Arabic text (plain letters, and occasionally a plain space; see
 // gen/main.go's package comment on the FE70-FE7F standalone-diacritic
 // forms), so it flows into the rest of Normalize exactly as if it had been
 // typed that way to begin with. That is also why this pass is idempotent

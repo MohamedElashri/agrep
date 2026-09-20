@@ -10,7 +10,7 @@ import (
 // A small, hand-picked fixture in the same format as UnicodeData.txt,
 // covering: a single-codepoint contextual form, a multi-codepoint
 // ligature, an entry with no decomposition (should be skipped), an entry
-// with a tag we don't want (canonical, no tag at all — should be skipped),
+// with a tag we don't want (canonical, no tag at all: should be skipped),
 // and a codepoint outside the two presentation-form blocks (should be
 // skipped even though it has a qualifying tag).
 const fixture = `0041;LATIN CAPITAL LETTER A;Lu;0;L;;;;;N;;;;0061;

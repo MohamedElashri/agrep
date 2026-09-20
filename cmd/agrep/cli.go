@@ -1,46 +1,71 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"runtime"
+	"strconv"
+	"sync"
 
 	"github.com/MohamedElashri/agrep/arabic"
+	"github.com/MohamedElashri/agrep/internal/walk"
 	"github.com/MohamedElashri/agrep/match"
 	"github.com/MohamedElashri/agrep/scan"
 )
 
-const usageText = `Usage: agrep [options] <query> [file]
+const usageText = `Usage: agrep [options] <query> [path ...]
+       agrep [options] -e <query>... [path ...]
 
 Search Arabic text while ignoring tashkil, tatweel, canonical Unicode form,
 and common Alef, Hamza, Ta-Marbuta, and Alef-Maksura spelling differences.
-Use file "-" or omit file to read standard input.
+With no path, read standard input. Use path "-" to read standard input among
+other inputs.
 
-Options:
-  -j, --json                     emit one JSON object per matching line
-  -n, --line-number              prefix human output with the 1-based line number
-      --max-line-bytes N         reject longer logical lines (0 means unlimited)
-      --profile NAME             search|strict|loose|lucene|camel (default: search)
+Search options:
+  -e PATTERN                       add a pattern (repeatable)
+  -i, --ignore-case               apply Unicode case folding
+  -v, --invert-match              select non-matching lines
+  -r, --recursive                 walk directories (or the current directory)
+      --include GLOB              search only matching files (repeatable)
+      --exclude GLOB              skip matching files/directories (repeatable)
+      --no-ignore                 do not honor .gitignore files
+      --threads N                 file-search workers (default: available CPUs)
+
+Output options:
+  -j, --json                      emit one JSON object per selected/context line
+  -n, --line-number               prefix human output with the 1-based line number
+  -c, --count                     print selected-line counts
+  -l, --files-with-matches        print files containing selected lines
+  -L, --files-without-match       print files containing no selected lines
+  -A N, --after-context N         print N lines after selected lines
+  -B N, --before-context N        print N lines before selected lines
+  -C N, --context N               print N lines before and after selected lines
+  -H, --with-filename             always print filename prefixes
+  -h, --no-filename               never print filename prefixes
+
+Normalization options:
+      --max-line-bytes N          reject longer logical lines (0 means unlimited)
+      --profile NAME              search|strict|loose|lucene|camel (default: search)
       --keep-hamza                don't fold hamza/madda variants (أ إ آ ٱ ؤ ئ)
-      --keep-tamarbuta             don't fold ة to ه
-      --keep-tashkil               don't strip tashkil (diacritics)
-      --keep-presentation-forms    don't expand ligatures/contextual letter forms
-      --keep-joiners               don't strip ZWNJ/ZWJ
-      --keep-bidi-marks            don't strip bidi control characters
-      --keep-quranic-marks         don't strip Quranic annotation marks
-      --fold-digits                fold Arabic-Indic/Extended Arabic-Indic digits to ASCII
-      --fold-punctuation           fold Arabic punctuation to ASCII
-      --version                    print version and exit
-  -h, --help                       show this help
+      --keep-tamarbuta            don't fold ة to ه
+      --keep-tashkil              don't strip tashkil (diacritics)
+      --keep-presentation-forms   don't expand ligatures/contextual letter forms
+      --keep-joiners              don't strip ZWNJ/ZWJ
+      --keep-bidi-marks           don't strip bidi control characters
+      --keep-quranic-marks        don't strip Quranic annotation marks
+      --fold-digits               fold Arabic-Indic/Extended Arabic-Indic digits to ASCII
+      --fold-punctuation          fold Arabic punctuation to ASCII
+      --version                   print version and exit
+      --help                      show this help
 
 Profiles:
   search  agrep's original, default behavior: every fold enabled except
           digit/punctuation folding.
-  strict  strips only cosmetic marks (tashkil, tatweel, presentation forms,
-          joiners, bidi marks, Quranic marks); keeps every letter-level
-          distinction (hamza, ta-marbuta, alef-maksura).
+  strict  strips only cosmetic marks; keeps every letter-level distinction.
   loose   every fold this build defines, including digit/punctuation folding.
   lucene  matches Apache Lucene's ArabicNormalizer.
   camel   matches CAMeL Tools' normalize_alef_ar/dediac_ar family.
@@ -48,25 +73,43 @@ See docs/NORMALIZATION.md for exactly what each profile does and why.
 
 --keep-*/--fold-* flags apply on top of --profile.
 
-Exit status: 0 if matched, 1 if not matched, 2 on an error.
+Exit status: 0 if selected, 1 if nothing was selected, 2 on an error.
 `
 
+type filenameMode uint8
+
+const (
+	filenameAuto filenameMode = iota
+	filenameAlways
+	filenameNever
+)
+
 type cliOptions struct {
-	jsonOutput   bool
-	lineNumbers  bool
-	maxLineBytes uint64
-	profileName  string
-	overrides    profileOverrides
-	showHelp     bool
-	showVersion  bool
+	jsonOutput        bool
+	lineNumbers       bool
+	maxLineBytes      uint64
+	profileName       string
+	overrides         profileOverrides
+	showHelp          bool
+	showVersion       bool
+	recursive         bool
+	ignoreCase        bool
+	invertMatch       bool
+	countOnly         bool
+	filesWithMatches  bool
+	filesWithoutMatch bool
+	beforeContext     int
+	afterContext      int
+	filenameMode      filenameMode
+	patterns          stringList
+	includes          stringList
+	excludes          stringList
+	noIgnore          bool
+	threads           int
 }
 
 // profileOverrides are the --keep-*/--fold-* flags applied on top of
-// whichever preset --profile selects. Each keep* flag only ever clears a
-// field the preset may have left on; each fold* flag only ever sets one the
-// preset may have left off. None of the nine can conflict with another —
-// they touch disjoint fields — so there is no ordering ambiguity to resolve
-// between them; see resolveProfile.
+// whichever preset --profile selects.
 type profileOverrides struct {
 	keepHamza             bool
 	keepTaMarbuta         bool
@@ -79,56 +122,234 @@ type profileOverrides struct {
 	foldPunctuation       bool
 }
 
+type inputSpec struct {
+	path  string
+	label string
+	stdin bool
+}
+
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	opts, positional, code := parseArgs(args, stdout, stderr)
 	if code >= 0 {
 		return code
 	}
 
+	queries, paths, err := resolveOperands(opts.patterns, positional)
+	if err != nil {
+		fmt.Fprintf(stderr, "agrep: %v\n", err)
+		return 2
+	}
 	profile, err := resolveProfile(opts.profileName, opts.overrides)
 	if err != nil {
 		fmt.Fprintf(stderr, "agrep: %v\n", err)
 		return 2
 	}
-
-	query := positional[0]
-	matcher, err := match.NewLiteral(query, profile)
+	matcher, err := match.NewLiterals(queries, profile, opts.ignoreCase)
 	if err != nil {
 		fmt.Fprintf(stderr, "agrep: %v\n", err)
 		return 2
 	}
 
-	input := stdin
-	var file *os.File
-	if len(positional) == 2 && positional[1] != "-" {
-		var err error
-		file, err = os.Open(positional[1])
-		if err != nil {
-			fmt.Fprintf(stderr, "agrep: %v\n", err)
-			return 2
-		}
-		input = file
+	inputs, discoverErr := discoverInputs(paths, opts)
+	if len(inputs) == 0 && len(paths) == 0 && !opts.recursive {
+		inputs = []inputSpec{{label: "(standard input)", stdin: true}}
 	}
+	showFilenames := opts.filenameMode == filenameAlways ||
+		(opts.filenameMode == filenameAuto && (len(inputs) > 1 || opts.recursive))
 
-	emit := humanEmitter(stdout, opts.lineNumbers)
-	if opts.jsonOutput {
-		emit = jsonEmitter(stdout)
-	}
-
-	found, err := scan.Search(input, matcher, scan.Options{MaxLineBytes: opts.maxLineBytes}, emit)
-	if file != nil {
-		if closeErr := file.Close(); err == nil && closeErr != nil {
-			err = closeErr
-		}
-	}
+	hadSelection, searchErr := searchInputs(inputs, stdin, stdout, matcher, opts, showFilenames)
+	err = errors.Join(discoverErr, searchErr)
 	if err != nil {
 		fmt.Fprintf(stderr, "agrep: %v\n", err)
 		return 2
 	}
-	if !found {
+	if !hadSelection {
 		return 1
 	}
 	return 0
+}
+
+func resolveOperands(patterns []string, positional []string) (queries, paths []string, err error) {
+	if len(patterns) > 0 {
+		return append([]string(nil), patterns...), positional, nil
+	}
+	if len(positional) == 0 {
+		return nil, nil, errors.New("missing query")
+	}
+	return []string{positional[0]}, positional[1:], nil
+}
+
+func discoverInputs(paths []string, opts cliOptions) ([]inputSpec, error) {
+	if len(paths) == 0 && opts.recursive {
+		paths = []string{"."}
+	}
+	seen := make(map[string]struct{})
+	stdinSeen := false
+	var inputs []inputSpec
+	var errs []error
+	for _, name := range paths {
+		if name == "-" {
+			if !stdinSeen {
+				inputs = append(inputs, inputSpec{label: "(standard input)", stdin: true})
+				stdinSeen = true
+			}
+			continue
+		}
+		files, err := walk.Collect([]string{name}, walk.Options{
+			Recursive: opts.recursive,
+			NoIgnore:  opts.noIgnore,
+			Includes:  opts.includes,
+			Excludes:  opts.excludes,
+		})
+		if err != nil {
+			errs = append(errs, err)
+		}
+		for _, file := range files {
+			if _, ok := seen[file]; ok {
+				continue
+			}
+			seen[file] = struct{}{}
+			inputs = append(inputs, inputSpec{path: file, label: file})
+		}
+	}
+	return inputs, errors.Join(errs...)
+}
+
+type fileResult struct {
+	index     int
+	output    []byte
+	found     bool
+	qualifies bool
+	err       error
+}
+
+func searchInputs(inputs []inputSpec, stdin io.Reader, stdout io.Writer, matcher match.Matcher, opts cliOptions, showFilenames bool) (bool, error) {
+	if len(inputs) == 1 {
+		found, qualifies, err := searchOne(inputs[0], stdin, stdout, matcher, opts, showFilenames)
+		if opts.filesWithoutMatch {
+			return qualifies, err
+		}
+		return found, err
+	}
+	if len(inputs) == 0 {
+		return false, nil
+	}
+
+	workers := opts.threads
+	if workers > len(inputs) {
+		workers = len(inputs)
+	}
+	jobs := make(chan int)
+	results := make(chan fileResult, len(inputs))
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for index := range jobs {
+				var buffer bytes.Buffer
+				found, qualifies, err := searchOne(inputs[index], stdin, &buffer, matcher, opts, showFilenames)
+				results <- fileResult{index: index, output: buffer.Bytes(), found: found, qualifies: qualifies, err: err}
+			}
+		}()
+	}
+	go func() {
+		for index := range inputs {
+			jobs <- index
+		}
+		close(jobs)
+		wg.Wait()
+		close(results)
+	}()
+
+	pending := make(map[int]fileResult)
+	next := 0
+	selected := false
+	var errs []error
+	var writeErr error
+	for result := range results {
+		pending[result.index] = result
+		for {
+			ordered, ok := pending[next]
+			if !ok {
+				break
+			}
+			delete(pending, next)
+			if opts.filesWithoutMatch {
+				selected = selected || ordered.qualifies
+			} else {
+				selected = selected || ordered.found
+			}
+			if ordered.err != nil {
+				errs = append(errs, ordered.err)
+			}
+			if writeErr == nil && len(ordered.output) > 0 {
+				_, writeErr = stdout.Write(ordered.output)
+			}
+			next++
+		}
+	}
+	return selected, errors.Join(append(errs, writeErr)...)
+}
+
+func searchOne(input inputSpec, stdin io.Reader, output io.Writer, matcher match.Matcher, opts cliOptions, showFilenames bool) (found, qualifies bool, err error) {
+	reader := stdin
+	var file *os.File
+	if !input.stdin {
+		file, err = os.Open(input.path)
+		if err != nil {
+			return false, false, fmt.Errorf("%s: %w", input.path, err)
+		}
+		reader = file
+		defer func() {
+			if closeErr := file.Close(); err == nil && closeErr != nil {
+				err = closeErr
+			}
+		}()
+	}
+
+	contextLines := !opts.countOnly && !opts.filesWithMatches && !opts.filesWithoutMatch
+	searchOpts := scan.Options{
+		MaxLineBytes: opts.maxLineBytes,
+		File:         input.label,
+		InvertMatch:  opts.invertMatch,
+	}
+	if contextLines {
+		searchOpts.BeforeContext = opts.beforeContext
+		searchOpts.AfterContext = opts.afterContext
+	}
+
+	count := int64(0)
+	emit := humanEmitter(output, opts.lineNumbers, showFilenames)
+	if opts.jsonOutput {
+		emit = jsonEmitter(output)
+	}
+	found, err = scan.Search(reader, matcher, searchOpts, func(mt scan.Match) error {
+		if !mt.Context {
+			count++
+		}
+		if contextLines {
+			return emit(mt)
+		}
+		return nil
+	})
+	if err != nil {
+		return false, false, fmt.Errorf("%s: %w", input.label, err)
+	}
+
+	switch {
+	case opts.countOnly:
+		if showFilenames {
+			_, err = fmt.Fprintf(output, "%s:%d\n", input.label, count)
+		} else {
+			_, err = fmt.Fprintln(output, count)
+		}
+	case opts.filesWithMatches && found:
+		_, err = fmt.Fprintln(output, input.label)
+	case opts.filesWithoutMatch && !found:
+		_, err = fmt.Fprintln(output, input.label)
+	}
+	return found, !found, err
 }
 
 // resolveProfile selects a named preset and then applies o on top of it.
@@ -182,7 +403,7 @@ func resolveProfile(name string, o profileOverrides) (arabic.Profile, error) {
 }
 
 func parseArgs(args []string, stdout, stderr io.Writer) (cliOptions, []string, int) {
-	var opts cliOptions
+	opts := cliOptions{threads: runtime.GOMAXPROCS(0)}
 	fs := flag.NewFlagSet("agrep", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() { fmt.Fprint(stderr, usageText) }
@@ -191,6 +412,33 @@ func parseArgs(args []string, stdout, stderr io.Writer) (cliOptions, []string, i
 	fs.BoolVar(&opts.jsonOutput, "json", false, "emit JSON Lines")
 	fs.BoolVar(&opts.lineNumbers, "n", false, "print line numbers")
 	fs.BoolVar(&opts.lineNumbers, "line-number", false, "print line numbers")
+	fs.BoolVar(&opts.recursive, "r", false, "walk directories")
+	fs.BoolVar(&opts.recursive, "recursive", false, "walk directories")
+	fs.BoolVar(&opts.ignoreCase, "i", false, "Unicode case folding")
+	fs.BoolVar(&opts.ignoreCase, "ignore-case", false, "Unicode case folding")
+	fs.BoolVar(&opts.invertMatch, "v", false, "select non-matching lines")
+	fs.BoolVar(&opts.invertMatch, "invert-match", false, "select non-matching lines")
+	fs.BoolVar(&opts.countOnly, "c", false, "print match counts")
+	fs.BoolVar(&opts.countOnly, "count", false, "print match counts")
+	fs.BoolVar(&opts.filesWithMatches, "l", false, "print files with matches")
+	fs.BoolVar(&opts.filesWithMatches, "files-with-matches", false, "print files with matches")
+	fs.BoolVar(&opts.filesWithoutMatch, "L", false, "print files without matches")
+	fs.BoolVar(&opts.filesWithoutMatch, "files-without-match", false, "print files without matches")
+	fs.Var(&opts.patterns, "e", "pattern")
+	fs.Var(&opts.includes, "include", "include glob")
+	fs.Var(&opts.excludes, "exclude", "exclude glob")
+	fs.BoolVar(&opts.noIgnore, "no-ignore", false, "disable .gitignore handling")
+	fs.IntVar(&opts.threads, "threads", opts.threads, "file-search workers")
+	fs.Var(contextFlag{before: &opts.beforeContext}, "B", "lines before matches")
+	fs.Var(contextFlag{before: &opts.beforeContext}, "before-context", "lines before matches")
+	fs.Var(contextFlag{after: &opts.afterContext}, "A", "lines after matches")
+	fs.Var(contextFlag{after: &opts.afterContext}, "after-context", "lines after matches")
+	fs.Var(contextFlag{before: &opts.beforeContext, after: &opts.afterContext}, "C", "lines around matches")
+	fs.Var(contextFlag{before: &opts.beforeContext, after: &opts.afterContext}, "context", "lines around matches")
+	fs.Var(filenameFlag{mode: &opts.filenameMode, value: filenameAlways}, "H", "print filenames")
+	fs.Var(filenameFlag{mode: &opts.filenameMode, value: filenameAlways}, "with-filename", "print filenames")
+	fs.Var(filenameFlag{mode: &opts.filenameMode, value: filenameNever}, "h", "suppress filenames")
+	fs.Var(filenameFlag{mode: &opts.filenameMode, value: filenameNever}, "no-filename", "suppress filenames")
 	fs.Uint64Var(&opts.maxLineBytes, "max-line-bytes", 0, "maximum logical line size")
 	fs.StringVar(&opts.profileName, "profile", "search", "normalization profile")
 	fs.BoolVar(&opts.overrides.keepHamza, "keep-hamza", false, "don't fold hamza/madda variants")
@@ -202,7 +450,6 @@ func parseArgs(args []string, stdout, stderr io.Writer) (cliOptions, []string, i
 	fs.BoolVar(&opts.overrides.keepQuranicMarks, "keep-quranic-marks", false, "don't strip Quranic annotation marks")
 	fs.BoolVar(&opts.overrides.foldDigits, "fold-digits", false, "fold Arabic-Indic/Extended Arabic-Indic digits to ASCII")
 	fs.BoolVar(&opts.overrides.foldPunctuation, "fold-punctuation", false, "fold Arabic punctuation to ASCII")
-	fs.BoolVar(&opts.showHelp, "h", false, "show help")
 	fs.BoolVar(&opts.showHelp, "help", false, "show help")
 	fs.BoolVar(&opts.showVersion, "version", false, "print version")
 
@@ -221,10 +468,71 @@ func parseArgs(args []string, stdout, stderr io.Writer) (cliOptions, []string, i
 		fmt.Fprintf(stdout, "agrep %s\n", version)
 		return opts, nil, 0
 	}
-	if fs.NArg() < 1 || fs.NArg() > 2 {
-		fmt.Fprint(stderr, usageText)
+	if opts.threads < 1 {
+		fmt.Fprintln(stderr, "agrep: --threads must be at least 1")
 		return opts, nil, 2
 	}
-
+	modes := 0
+	for _, enabled := range []bool{opts.countOnly, opts.filesWithMatches, opts.filesWithoutMatch} {
+		if enabled {
+			modes++
+		}
+	}
+	if modes > 1 {
+		fmt.Fprintln(stderr, "agrep: --count, --files-with-matches, and --files-without-match are mutually exclusive")
+		return opts, nil, 2
+	}
+	if opts.jsonOutput && modes > 0 {
+		fmt.Fprintln(stderr, "agrep: --json cannot be combined with count or filename-only output")
+		return opts, nil, 2
+	}
 	return opts, fs.Args(), -1
+}
+
+type stringList []string
+
+func (s *stringList) String() string { return fmt.Sprint([]string(*s)) }
+func (s *stringList) Set(value string) error {
+	*s = append(*s, value)
+	return nil
+}
+
+type contextFlag struct {
+	before *int
+	after  *int
+}
+
+func (f contextFlag) String() string { return "0" }
+func (f contextFlag) Set(value string) error {
+	n, err := strconv.Atoi(value)
+	if err != nil || n < 0 {
+		return errors.New("context must be a non-negative integer")
+	}
+	if f.before != nil {
+		*f.before = n
+	}
+	if f.after != nil {
+		*f.after = n
+	}
+	return nil
+}
+
+type filenameFlag struct {
+	mode  *filenameMode
+	value filenameMode
+}
+
+func (f filenameFlag) String() string   { return "false" }
+func (f filenameFlag) IsBoolFlag() bool { return true }
+func (f filenameFlag) Set(value string) error {
+	enabled, err := strconv.ParseBool(value)
+	if err != nil {
+		return err
+	}
+	if enabled {
+		*f.mode = f.value
+	} else {
+		*f.mode = filenameAuto
+	}
+	return nil
 }
