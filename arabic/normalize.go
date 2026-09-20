@@ -1,20 +1,21 @@
-package main
+package arabic
 
 import (
 	"errors"
 	"strings"
 	"unicode"
-	"unicode/utf8"
 
 	"golang.org/x/text/unicode/norm"
 )
 
-var errEmptyQuery = errors.New("query is empty after normalization")
+// ErrEmptyKey is returned by callers that reject a value which normalizes to
+// the empty string, such as a search query consisting only of tashkil.
+var ErrEmptyKey = errors.New("arabic: value is empty after normalization")
 
-// normalizeArabic returns a comparison key. NFD first makes canonically
+// Normalize returns a comparison key for s. NFD first makes canonically
 // equivalent Unicode spellings identical; removing Mn then strips tashkil and
 // other combining marks. Non-Arabic base characters retain their spelling.
-func normalizeArabic(s string) string {
+func Normalize(s string) string {
 	if s == "" {
 		return ""
 	}
@@ -39,23 +40,23 @@ func normalizeArabic(s string) string {
 
 		original := r
 		switch r {
-		case '\u0640': // Tatweel.
+		case 'ـ': // Tatweel.
 			if !changed {
 				b.Grow(len(decomposed))
 				b.WriteString(decomposed[:offset])
 				changed = true
 			}
 			continue
-		case '\u0622', '\u0623', '\u0625', '\u0671': // Alef variants and wasla.
-			r = '\u0627'
-		case '\u0624': // Waw with hamza.
-			r = '\u0648'
-		case '\u0626': // Yeh with hamza.
-			r = '\u064A'
-		case '\u0629': // Ta-marbuta.
-			r = '\u0647'
-		case '\u0649': // Alef maksura.
-			r = '\u064A'
+		case 'آ', 'أ', 'إ', 'ٱ': // Alef variants and wasla.
+			r = 'ا'
+		case 'ؤ': // Waw with hamza.
+			r = 'و'
+		case 'ئ': // Yeh with hamza.
+			r = 'ي'
+		case 'ة': // Ta-marbuta.
+			r = 'ه'
+		case 'ى': // Alef maksura.
+			r = 'ي'
 		}
 
 		if r != original && !changed {
@@ -72,17 +73,4 @@ func normalizeArabic(s string) string {
 		return decomposed
 	}
 	return b.String()
-}
-
-func normalizeQuery(query string) (string, error) {
-	if !utf8.ValidString(query) {
-		return "", errors.New("query is not valid UTF-8")
-	}
-
-	normalized := normalizeArabic(query)
-	if normalized == "" {
-		return "", errEmptyQuery
-	}
-
-	return normalized, nil
 }

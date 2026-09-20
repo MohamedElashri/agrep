@@ -1,4 +1,4 @@
-package main
+package scan
 
 import (
 	"strings"
@@ -25,29 +25,19 @@ func benchFixture(n int) string {
 	return b.String()
 }
 
-func BenchmarkNormalizeArabic(b *testing.B) {
-	b.SetBytes(int64(len(benchLine)))
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		_ = normalizeArabic(benchLine)
-	}
-}
-
 func BenchmarkSearch(b *testing.B) {
 	const fixtureSize = 10 * 1024 * 1024
 	fixture := benchFixture(fixtureSize)
-	query := "الطلاب"
-	if _, err := normalizeQuery(query); err != nil {
-		b.Fatalf("bad benchmark query: %v", err)
-	}
+
+	m := mustLiteral(b, "الطلاب")
 
 	b.SetBytes(int64(len(fixture)))
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		found, err := search(strings.NewReader(fixture), query, searchOptions{}, func(Match) error { return nil })
+		found, err := Search(strings.NewReader(fixture), m, Options{}, func(Match) error { return nil })
 		if err != nil {
-			b.Fatalf("search: %v", err)
+			b.Fatalf("Search: %v", err)
 		}
 		if !found {
 			b.Fatal("expected at least one match")

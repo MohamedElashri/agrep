@@ -4,7 +4,7 @@ project_name: agrep
 
 builds:
   - id: agrep
-    main: .
+    main: ./cmd/agrep
     binary: agrep
     env:
       - CGO_ENABLED=0

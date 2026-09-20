@@ -1,4 +1,4 @@
-package main
+package scan
 
 import (
 	"bufio"
@@ -8,6 +8,9 @@ import (
 	"io"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/MohamedElashri/agrep/arabic"
+	"github.com/MohamedElashri/agrep/match"
 )
 
 // Match is one matching logical line. Text excludes the CR/LF line ending.
@@ -16,19 +19,17 @@ type Match struct {
 	Text string `json:"text"`
 }
 
-type searchOptions struct {
+// Options controls how Search reads input.
+type Options struct {
 	// MaxLineBytes is measured after removing CR/LF. Zero means unlimited.
 	MaxLineBytes uint64
 }
 
-// search reads arbitrary-length logical lines without bufio.Scanner's token
-// ceiling. It normalizes the query once and preserves every matching line.
-func search(r io.Reader, query string, opts searchOptions, onMatch func(Match) error) (bool, error) {
-	normalizedQuery, err := normalizeQuery(query)
-	if err != nil {
-		return false, err
-	}
-
+// Search reads arbitrary-length logical lines from r without
+// bufio.Scanner's token ceiling, and reports every line whose normalized
+// text m finds. It preserves the original, unnormalized text of every
+// matching line.
+func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) error) (bool, error) {
 	reader := bufio.NewReader(r)
 	var lineNumber int64
 	found := false
@@ -47,7 +48,7 @@ func search(r io.Reader, query string, opts searchOptions, onMatch func(Match) e
 			return false, fmt.Errorf("line %d is not valid UTF-8", lineNumber)
 		}
 
-		if strings.Contains(normalizeArabic(line), normalizedQuery) {
+		if spans := m.FindAll(arabic.Normalize(line)); len(spans) > 0 {
 			found = true
 			if err := onMatch(Match{Line: lineNumber, Text: line}); err != nil {
 				return false, err

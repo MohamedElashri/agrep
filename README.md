@@ -16,8 +16,8 @@ it, and place `agrep` somewhere on your `PATH`.
 From a checkout:
 
 ```sh
-go install .
-go build -trimpath -ldflags "-s -w -X main.version=$(git describe --tags --always --dirty)" -o agrep .
+go install ./cmd/agrep
+go build -trimpath -ldflags "-s -w -X main.version=$(git describe --tags --always --dirty)" -o agrep ./cmd/agrep
 ```
 
 ## Usage
@@ -66,6 +66,32 @@ Input and query must be valid UTF-8. Logical lines have no built-in size ceiling
 use `--max-line-bytes N` when processing untrusted input. A query that becomes
 empty after normalization is rejected.
 
+## Library use
+
+The CLI is a thin wrapper around three importable packages:
+
+- [`arabic`](arabic) — `arabic.Normalize(s string) string`, the normalization
+  described above, with no CLI or I/O dependency.
+- [`match`](match) — `match.NewLiteral(query string) (Matcher, error)` builds
+  a reusable matcher from a query once; `Matcher.FindAll(normalized string)
+  []Span` finds every occurrence in already-normalized text.
+- [`scan`](scan) — `scan.Search(r io.Reader, m match.Matcher, opts
+  scan.Options, onMatch func(scan.Match) error) (bool, error)` streams
+  arbitrary-length logical lines from a reader and reports the ones that
+  match.
+
+```go
+import "github.com/MohamedElashri/agrep/arabic"
+
+voweled := "مَدْرَسَةٌ"
+unvoweled := "مدرسه"
+arabic.Normalize(voweled) == arabic.Normalize(unvoweled) // true
+```
+
+```sh
+go get github.com/MohamedElashri/agrep/arabic
+```
+
 ## Development
 
 ```sh
@@ -75,21 +101,23 @@ go vet ./...
 gofmt -l .
 ```
 
-`normalize.go` and `search.go` also have fuzz targets that assert normalization
-never panics, always produces valid UTF-8, and is idempotent, and that `search`
-never panics on arbitrary input:
+`arabic`, `match`, and `scan` also have fuzz targets that assert normalization
+never panics, always produces valid UTF-8, and is idempotent, and that matching
+and line-scanning never panic on arbitrary input:
 
 ```sh
-go test -run '^$' -fuzz FuzzNormalizeIdempotent -fuzztime 30s .
-go test -run '^$' -fuzz FuzzNormalizeValidUTF8 -fuzztime 30s .
-go test -run '^$' -fuzz FuzzNormalizeNoPanic -fuzztime 30s .
-go test -run '^$' -fuzz FuzzSearchNoPanic -fuzztime 30s .
+go test -run '^$' -fuzz FuzzNormalizeIdempotent -fuzztime 30s ./arabic
+go test -run '^$' -fuzz FuzzNormalizeValidUTF8 -fuzztime 30s ./arabic
+go test -run '^$' -fuzz FuzzNormalizeNoPanic -fuzztime 30s ./arabic
+go test -run '^$' -fuzz FuzzNewLiteralNoPanic -fuzztime 30s ./match
+go test -run '^$' -fuzz FuzzSearchNoPanic -fuzztime 30s ./scan
 ```
 
-A benchmark baseline lives in `bench_test.go`:
+Benchmark baselines live alongside each package (`arabic/bench_test.go`,
+`scan/bench_test.go`):
 
 ```sh
-go test -run '^$' -bench . -benchmem .
+go test -run '^$' -bench . -benchmem ./...
 ```
 
 ## Releases
