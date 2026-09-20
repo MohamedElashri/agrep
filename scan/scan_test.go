@@ -6,12 +6,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MohamedElashri/agrep/arabic"
 	"github.com/MohamedElashri/agrep/match"
 )
 
 func mustLiteral(t testing.TB, query string) match.Matcher {
 	t.Helper()
-	m, err := match.NewLiteral(query)
+	m, err := match.NewLiteral(query, arabic.ProfileSearch)
 	if err != nil {
 		t.Fatalf("match.NewLiteral(%q): %v", query, err)
 	}
@@ -102,21 +103,32 @@ func TestSearchNoMatch(t *testing.T) {
 	}
 }
 
-// FuzzSearchNoPanic feeds arbitrary input bytes and an arbitrary query
-// through match.NewLiteral and Search, and only requires that it returns (an
-// error is fine; a panic is not). It exercises the reader/line-assembly path
-// in readLine together with normalization and matching, which the arabic and
-// match package fuzz targets don't reach together.
+// FuzzSearchNoPanic feeds arbitrary input bytes, an arbitrary query, and an
+// arbitrary profile through match.NewLiteral and Search, and only requires
+// that it returns (an error is fine; a panic is not). It exercises the
+// reader/line-assembly path in readLine together with normalization and
+// matching, which the arabic and match package fuzz targets don't reach
+// together.
 func FuzzSearchNoPanic(f *testing.F) {
-	f.Add([]byte("هذِهِ مَدْرَسَةٌ\r\nمدرسه\n"), "مدرسه", uint64(0))
-	f.Add([]byte("plain\nascii\ntext\n"), "text", uint64(0))
-	f.Add([]byte{'x', 0xff, '\n'}, "x", uint64(0))
-	f.Add([]byte("one\ntwo\n"), "unused", uint64(0))
-	f.Add([]byte("12345\n"), "1", uint64(4))
-	f.Add([]byte(""), "q", uint64(0))
+	f.Add([]byte("هذِهِ مَدْرَسَةٌ\r\nمدرسه\n"), "مدرسه", uint64(0), 0)
+	f.Add([]byte("plain\nascii\ntext\n"), "text", uint64(0), 1)
+	f.Add([]byte{'x', 0xff, '\n'}, "x", uint64(0), 2)
+	f.Add([]byte("one\ntwo\n"), "unused", uint64(0), 3)
+	f.Add([]byte("12345\n"), "1", uint64(4), 4)
+	f.Add([]byte(""), "q", uint64(0), 0)
 
-	f.Fuzz(func(t *testing.T, data []byte, query string, maxLineBytes uint64) {
-		m, err := match.NewLiteral(query)
+	profiles := [...]arabic.Profile{
+		arabic.ProfileSearch, arabic.ProfileStrict, arabic.ProfileLoose,
+		arabic.ProfileLucene, arabic.ProfileCAMeL,
+	}
+
+	f.Fuzz(func(t *testing.T, data []byte, query string, maxLineBytes uint64, profileIdx int) {
+		i := profileIdx % len(profiles)
+		if i < 0 {
+			i += len(profiles)
+		}
+
+		m, err := match.NewLiteral(query, profiles[i])
 		if err != nil {
 			return
 		}

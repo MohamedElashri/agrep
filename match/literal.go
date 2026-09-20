@@ -23,30 +23,43 @@ type Matcher interface {
 	// String returns the original, unnormalized pattern the Matcher was
 	// built from, for diagnostics and human-readable output.
 	String() string
+
+	// Profile returns the arabic.Profile the Matcher was built with.
+	// Callers (scan.Search in particular) must normalize a haystack with
+	// this same profile before calling FindAll — a Matcher and its caller
+	// disagreeing about which profile normalized the haystack would make
+	// FindAll compare keys that were never meant to be compared.
+	Profile() arabic.Profile
 }
 
-// NewLiteral builds a Matcher that finds query as a literal, normalized
-// substring. query must be valid UTF-8 and must not normalize to the empty
+// NewLiteral builds a Matcher that finds query as a literal substring of
+// text normalized under p. query must be valid UTF-8, p must be a valid
+// Profile (see Profile.Validate), and query must not normalize to the empty
 // string (ErrEmptyKey wraps arabic.ErrEmptyKey in that case).
-func NewLiteral(query string) (Matcher, error) {
+func NewLiteral(query string, p arabic.Profile) (Matcher, error) {
+	if err := p.Validate(); err != nil {
+		return nil, fmt.Errorf("match: %w", err)
+	}
 	if !utf8.ValidString(query) {
 		return nil, fmt.Errorf("match: query is not valid UTF-8")
 	}
 
-	key := arabic.Normalize(query)
+	key := p.Normalize(query)
 	if key == "" {
 		return nil, fmt.Errorf("match: %w", arabic.ErrEmptyKey)
 	}
 
-	return &literalMatcher{query: query, key: key}, nil
+	return &literalMatcher{query: query, key: key, profile: p}, nil
 }
 
 type literalMatcher struct {
-	query string // original, unnormalized pattern
-	key   string // normalized comparison key; guaranteed non-empty
+	query   string // original, unnormalized pattern
+	key     string // normalized comparison key; guaranteed non-empty
+	profile arabic.Profile
 }
 
-func (m *literalMatcher) String() string { return m.query }
+func (m *literalMatcher) String() string          { return m.query }
+func (m *literalMatcher) Profile() arabic.Profile { return m.profile }
 
 func (m *literalMatcher) FindAll(normalized string) []Span {
 	var spans []Span

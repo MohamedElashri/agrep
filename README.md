@@ -49,7 +49,8 @@ output failure, so consumers must honor the final exit status.
 
 ## Normalization
 
-Both query and input lines are normalized with Unicode NFD, then:
+Both query and input lines are normalized with Unicode NFD, then, under the
+default profile (`search`):
 
 - all Unicode non-spacing marks (`Mn`) and Arabic tatweel are removed;
 - `أ`, `إ`, `آ`, and `ٱ` become `ا`;
@@ -66,19 +67,47 @@ Input and query must be valid UTF-8. Logical lines have no built-in size ceiling
 use `--max-line-bytes N` when processing untrusted input. A query that becomes
 empty after normalization is rejected.
 
+### Profiles
+
+Which rules apply is controlled by `--profile`:
+
+```sh
+agrep --profile=strict "مدرسه" book.txt   # keeps hamza/ta-marbuta/alef-maksura distinct
+agrep --profile=lucene "مدرسه" book.txt   # matches Apache Lucene's ArabicNormalizer
+agrep --profile=camel  "مدرسه" book.txt   # matches CAMeL Tools' normalize_alef_ar/dediac_ar family
+```
+
+| Profile | What it does |
+| --- | --- |
+| `search` (default) | agrep's original, fixed behavior — every fold above, on every Unicode diacritic. |
+| `strict` | Strips only tashkil/tatweel; keeps every letter-level distinction (hamza, ta-marbuta, alef-maksura). |
+| `loose` | Every fold this build defines — currently identical to `search`. |
+| `lucene` | Matches Apache Lucene's `ArabicNormalizer`, verified against its source. |
+| `camel` | Matches the normalization CAMeL Tools users compose from `normalize_alef_ar`/`dediac_ar` and related functions, verified against their source. |
+
+`--keep-hamza`, `--keep-tamarbuta`, and `--keep-tashkil` each clear the
+corresponding rule on top of whichever `--profile` was selected. See
+[docs/NORMALIZATION.md](docs/NORMALIZATION.md) for exactly what every rule
+does, codepoint by codepoint, with citations to the Lucene and CAMeL Tools
+source each preset is checked against.
+
 ## Library use
 
 The CLI is a thin wrapper around three importable packages:
 
-- [`arabic`](arabic) — `arabic.Normalize(s string) string`, the normalization
-  described above, with no CLI or I/O dependency.
-- [`match`](match) — `match.NewLiteral(query string) (Matcher, error)` builds
-  a reusable matcher from a query once; `Matcher.FindAll(normalized string)
-  []Span` finds every occurrence in already-normalized text.
+- [`arabic`](arabic) — `arabic.Normalize(s string) string` (the default
+  profile's normalization) and `arabic.Profile`, with `Profile.Normalize`
+  for any of the five built-in presets (`ProfileSearch`, `ProfileStrict`,
+  `ProfileLoose`, `ProfileLucene`, `ProfileCAMeL`) or a custom combination
+  of rules. No CLI or I/O dependency.
+- [`match`](match) — `match.NewLiteral(query string, p arabic.Profile)
+  (Matcher, error)` builds a reusable matcher from a query and a profile
+  once; `Matcher.FindAll(normalized string) []Span` finds every occurrence
+  in text normalized under that same profile.
 - [`scan`](scan) — `scan.Search(r io.Reader, m match.Matcher, opts
   scan.Options, onMatch func(scan.Match) error) (bool, error)` streams
-  arbitrary-length logical lines from a reader and reports the ones that
-  match.
+  arbitrary-length logical lines from a reader, normalizes each with the
+  matcher's own profile, and reports the ones that match.
 
 ```go
 import "github.com/MohamedElashri/agrep/arabic"
@@ -86,6 +115,8 @@ import "github.com/MohamedElashri/agrep/arabic"
 voweled := "مَدْرَسَةٌ"
 unvoweled := "مدرسه"
 arabic.Normalize(voweled) == arabic.Normalize(unvoweled) // true
+
+arabic.ProfileStrict.Normalize(voweled) == arabic.ProfileStrict.Normalize(unvoweled) // false: ta-marbuta stays distinct from heh
 ```
 
 ```sh

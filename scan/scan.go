@@ -9,7 +9,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/MohamedElashri/agrep/arabic"
 	"github.com/MohamedElashri/agrep/match"
 )
 
@@ -31,6 +30,7 @@ type Options struct {
 // matching line.
 func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) error) (bool, error) {
 	reader := bufio.NewReader(r)
+	profile := m.Profile()
 	var lineNumber int64
 	found := false
 
@@ -48,7 +48,7 @@ func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) erro
 			return false, fmt.Errorf("line %d is not valid UTF-8", lineNumber)
 		}
 
-		if spans := m.FindAll(arabic.Normalize(line)); len(spans) > 0 {
+		if spans := m.FindAll(profile.Normalize(line)); len(spans) > 0 {
 			found = true
 			if err := onMatch(Match{Line: lineNumber, Text: line}); err != nil {
 				return false, err
