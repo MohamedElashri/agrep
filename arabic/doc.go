@@ -8,3 +8,5 @@
 // for round-tripping or for distinguishing text that a strict reading would
 // keep apart.
 package arabic
+
+//go:generate go run ./gen -in gen/UnicodeData.txt -out tables.go

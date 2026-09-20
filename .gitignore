@@ -1,4 +1,3 @@
 /dist/
 plan*
-agrep
-testdata
+/agrep

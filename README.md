@@ -52,11 +52,16 @@ output failure, so consumers must honor the final exit status.
 Both query and input lines are normalized with Unicode NFD, then, under the
 default profile (`search`):
 
+- Arabic presentation forms (contextual letter shapes, ligatures like `ﻻ`
+  and `ﷲ`) are expanded to plain letters — this is what lets `agrep` match
+  Arabic extracted from a PDF, which is usually encoded this way;
 - all Unicode non-spacing marks (`Mn`) and Arabic tatweel are removed;
 - `أ`, `إ`, `آ`, and `ٱ` become `ا`;
 - `ؤ` becomes `و`, and `ئ` becomes `ي`;
 - `ة` becomes `ه`;
-- `ى` becomes `ي`.
+- `ى` becomes `ي`;
+- ZWNJ/ZWJ, bidi control characters, and Quranic annotation marks are
+  removed.
 
 The original, unnormalized matching line is emitted. Matching is literal,
 case-sensitive, and substring-based after normalization. Because normalization
@@ -79,17 +84,21 @@ agrep --profile=camel  "مدرسه" book.txt   # matches CAMeL Tools' normalize_
 
 | Profile | What it does |
 | --- | --- |
-| `search` (default) | agrep's original, fixed behavior — every fold above, on every Unicode diacritic. |
-| `strict` | Strips only tashkil/tatweel; keeps every letter-level distinction (hamza, ta-marbuta, alef-maksura). |
-| `loose` | Every fold this build defines — currently identical to `search`. |
+| `search` (default) | agrep's original behavior, plus (as of the presentation-form/joiner/bidi/Quranic-mark rules above) fixes for text extracted from PDFs and copied from right-to-left web pages. Digit and punctuation folding stay off. |
+| `strict` | Strips only cosmetic/encoding-level marks (tashkil, tatweel, presentation forms, joiners, bidi marks, Quranic marks); keeps every letter-level distinction (hamza, ta-marbuta, alef-maksura). |
+| `loose` | Every fold this build defines, including digit (`١٢٣`→`123`) and punctuation (`،`→`,`) folding. |
 | `lucene` | Matches Apache Lucene's `ArabicNormalizer`, verified against its source. |
 | `camel` | Matches the normalization CAMeL Tools users compose from `normalize_alef_ar`/`dediac_ar` and related functions, verified against their source. |
 
-`--keep-hamza`, `--keep-tamarbuta`, and `--keep-tashkil` each clear the
-corresponding rule on top of whichever `--profile` was selected. See
+Nine `--keep-*`/`--fold-*` flags apply on top of whichever `--profile` was
+selected: `--keep-hamza`, `--keep-tamarbuta`, `--keep-tashkil`,
+`--keep-presentation-forms`, `--keep-joiners`, `--keep-bidi-marks`,
+`--keep-quranic-marks`, `--fold-digits`, `--fold-punctuation`. Run
+`agrep --help` for what each one does. See
 [docs/NORMALIZATION.md](docs/NORMALIZATION.md) for exactly what every rule
-does, codepoint by codepoint, with citations to the Lucene and CAMeL Tools
-source each preset is checked against.
+does, codepoint by codepoint, with citations to the Unicode Character
+Database and to the Lucene and CAMeL Tools source each preset is checked
+against.
 
 ## Library use
 
@@ -132,14 +141,29 @@ go vet ./...
 gofmt -l .
 ```
 
-`arabic`, `match`, and `scan` also have fuzz targets that assert normalization
-never panics, always produces valid UTF-8, and is idempotent, and that matching
-and line-scanning never panic on arbitrary input:
+`arabic/tables.go` (the presentation-form fold table) is generated from a
+vendored copy of the Unicode Character Database; regenerate it with:
 
 ```sh
-go test -run '^$' -fuzz FuzzNormalizeIdempotent -fuzztime 30s ./arabic
-go test -run '^$' -fuzz FuzzNormalizeValidUTF8 -fuzztime 30s ./arabic
-go test -run '^$' -fuzz FuzzNormalizeNoPanic -fuzztime 30s ./arabic
+go generate ./arabic/...
+```
+
+`go generate` should be a no-op unless `arabic/gen/UnicodeData.txt` or
+`arabic/gen/main.go` changed — run it and check `git diff` after touching
+either. See [arabic/gen/SOURCE.md](arabic/gen/SOURCE.md) for provenance and
+how to pick up a newer Unicode version.
+
+`arabic`, `match`, and `scan` also have fuzz targets that assert normalization
+never panics, always produces valid UTF-8, and is idempotent (across the
+*entire* `Profile` flag space, not just the five named presets — this is
+what actually found the subtle NFD/canonical-ordering interactions
+documented in `arabic/profile.go`'s `Normalize` doc comment), and that
+matching and line-scanning never panic on arbitrary input:
+
+```sh
+go test -run '^$' -fuzz FuzzProfileNormalizeIdempotent -fuzztime 30s ./arabic
+go test -run '^$' -fuzz FuzzProfileNormalizeValidUTF8 -fuzztime 30s ./arabic
+go test -run '^$' -fuzz FuzzProfileNormalizeNoPanic -fuzztime 30s ./arabic
 go test -run '^$' -fuzz FuzzNewLiteralNoPanic -fuzztime 30s ./match
 go test -run '^$' -fuzz FuzzSearchNoPanic -fuzztime 30s ./scan
 ```

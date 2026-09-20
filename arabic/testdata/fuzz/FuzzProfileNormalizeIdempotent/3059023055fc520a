@@ -1,0 +1,4 @@
+go test fuzz v1
+string("ٱٓ")
+uint16(46)
+int(-19)

@@ -1,0 +1,4 @@
+go test fuzz v1
+string("إً")
+uint16(95)
+int(1)

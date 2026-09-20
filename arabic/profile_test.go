@@ -183,6 +183,54 @@ func TestProfileCAMeL(t *testing.T) {
 	}
 }
 
+// profileBit indexes a Profile bool field for profileFromBits/bitsFromProfile.
+// Adding a field in a later phase (Langs, Rasm, ...) means adding one more
+// constant here and one more line in each of those two functions — an
+// explicit, growing positional-bool parameter list on every fuzz function
+// does not scale the same way.
+type profileBit uint
+
+const (
+	bitStripTashkil profileBit = iota
+	bitStripTatweel
+	bitFoldAlefHamza
+	bitFoldAlefWasla
+	bitFoldHamzaSeat
+	bitFoldTaMarbuta
+	bitFoldAlefMaksura
+	bitFoldPresentation
+	bitStripJoiners
+	bitStripBidi
+	bitFoldDigits
+	bitFoldPunctuation
+	bitStripQuranic
+)
+
+func profileFromBits(bits uint16, scope int) Profile {
+	has := func(b profileBit) bool { return bits&(1<<b) != 0 }
+	return Profile{
+		StripTashkil:     has(bitStripTashkil),
+		TashkilScope:     TashkilScope(scope),
+		StripTatweel:     has(bitStripTatweel),
+		FoldAlefHamza:    has(bitFoldAlefHamza),
+		FoldAlefWasla:    has(bitFoldAlefWasla),
+		FoldHamzaSeat:    has(bitFoldHamzaSeat),
+		FoldTaMarbuta:    has(bitFoldTaMarbuta),
+		FoldAlefMaksura:  has(bitFoldAlefMaksura),
+		FoldPresentation: has(bitFoldPresentation),
+		StripJoiners:     has(bitStripJoiners),
+		StripBidi:        has(bitStripBidi),
+		FoldDigits:       has(bitFoldDigits),
+		FoldPunctuation:  has(bitFoldPunctuation),
+		StripQuranic:     has(bitStripQuranic),
+	}
+}
+
+const allProfileBits uint16 = 1<<bitStripTashkil | 1<<bitStripTatweel | 1<<bitFoldAlefHamza |
+	1<<bitFoldAlefWasla | 1<<bitFoldHamzaSeat | 1<<bitFoldTaMarbuta | 1<<bitFoldAlefMaksura |
+	1<<bitFoldPresentation | 1<<bitStripJoiners | 1<<bitStripBidi | 1<<bitFoldDigits |
+	1<<bitFoldPunctuation | 1<<bitStripQuranic
+
 func addProfileFuzzSeeds(f *testing.F) {
 	seeds := []string{
 		"اَلْعَرَبِيَّةُ",
@@ -190,11 +238,18 @@ func addProfileFuzzSeeds(f *testing.F) {
 		"مسؤول فئة",
 		"العــربية",
 		"café",
+		"ﻻ ﷲ ﻛﺘﺎﺏ", // presentation forms and a ligature
+		"a" + string(rune(0x200C)) + "b" + string(rune(0x200D)) + "c", // ZWNJ, ZWJ
+		string(rune(0x061C)) + "حمد" + string(rune(0x200E)),           // ALM, LRM
+		"١٢٣ ۱۲۳",                      // Arabic-Indic and Extended Arabic-Indic digits
+		"قال، فقال؛",                   // Arabic comma, semicolon
+		"اللهۖ" + string(rune(0x06DD)), // Quranic small-high-ligature mark, end of ayah
 		"",
 	}
 	for _, s := range seeds {
 		for scope := 0; scope <= 2; scope++ {
-			f.Add(s, true, true, true, true, true, true, true, scope)
+			f.Add(s, allProfileBits, scope)
+			f.Add(s, uint16(0), scope)
 		}
 	}
 }
@@ -210,15 +265,11 @@ func addProfileFuzzSeeds(f *testing.F) {
 // happens to cover.
 func FuzzProfileNormalizeIdempotent(f *testing.F) {
 	addProfileFuzzSeeds(f)
-	f.Fuzz(func(t *testing.T, s string, tashkil, tatweel, alefHamza, alefWasla, hamzaSeat, taMarbuta, alefMaksura bool, scope int) {
+	f.Fuzz(func(t *testing.T, s string, bits uint16, scope int) {
 		if !utf8.ValidString(s) {
 			t.Skip()
 		}
-		p := Profile{
-			StripTashkil: tashkil, TashkilScope: TashkilScope(scope),
-			StripTatweel: tatweel, FoldAlefHamza: alefHamza, FoldAlefWasla: alefWasla,
-			FoldHamzaSeat: hamzaSeat, FoldTaMarbuta: taMarbuta, FoldAlefMaksura: alefMaksura,
-		}
+		p := profileFromBits(bits, scope)
 		once := p.Normalize(s)
 		twice := p.Normalize(once)
 		if once != twice {
@@ -233,15 +284,11 @@ func FuzzProfileNormalizeIdempotent(f *testing.F) {
 // covers).
 func FuzzProfileNormalizeValidUTF8(f *testing.F) {
 	addProfileFuzzSeeds(f)
-	f.Fuzz(func(t *testing.T, s string, tashkil, tatweel, alefHamza, alefWasla, hamzaSeat, taMarbuta, alefMaksura bool, scope int) {
+	f.Fuzz(func(t *testing.T, s string, bits uint16, scope int) {
 		if !utf8.ValidString(s) {
 			t.Skip()
 		}
-		p := Profile{
-			StripTashkil: tashkil, TashkilScope: TashkilScope(scope),
-			StripTatweel: tatweel, FoldAlefHamza: alefHamza, FoldAlefWasla: alefWasla,
-			FoldHamzaSeat: hamzaSeat, FoldTaMarbuta: taMarbuta, FoldAlefMaksura: alefMaksura,
-		}
+		p := profileFromBits(bits, scope)
 		got := p.Normalize(s)
 		if !utf8.ValidString(got) {
 			t.Fatalf("Normalize(%q) under %+v produced invalid UTF-8: %q", s, p, got)
@@ -254,14 +301,10 @@ func FuzzProfileNormalizeValidUTF8(f *testing.F) {
 // the latter; Normalize itself must still degrade safely, not panic).
 func FuzzProfileNormalizeNoPanic(f *testing.F) {
 	addProfileFuzzSeeds(f)
-	f.Add(string([]byte{0xff, 0xfe}), true, true, true, true, true, true, true, 7)
+	f.Add(string([]byte{0xff, 0xfe}), allProfileBits, 7)
 
-	f.Fuzz(func(t *testing.T, s string, tashkil, tatweel, alefHamza, alefWasla, hamzaSeat, taMarbuta, alefMaksura bool, scope int) {
-		p := Profile{
-			StripTashkil: tashkil, TashkilScope: TashkilScope(scope),
-			StripTatweel: tatweel, FoldAlefHamza: alefHamza, FoldAlefWasla: alefWasla,
-			FoldHamzaSeat: hamzaSeat, FoldTaMarbuta: taMarbuta, FoldAlefMaksura: alefMaksura,
-		}
+	f.Fuzz(func(t *testing.T, s string, bits uint16, scope int) {
+		p := profileFromBits(bits, scope)
 		_ = p.Normalize(s)
 		_ = p.Validate()
 	})

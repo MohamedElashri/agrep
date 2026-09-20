@@ -61,6 +61,20 @@ func tashkilScopeMatches(scope TashkilScope, r rune) bool {
 	}
 }
 
+// isBidiControl reports whether r is one of the twelve Unicode
+// Bidi_Control codepoints (Unicode PropList.txt): ALM (U+061C), LRM/RLM
+// (U+200E/F), LRE/RLE/PDF/LRO/RLO (U+202A-U+202E), and LRI/RLI/FSI/PDI
+// (U+2066-U+2069).
+func isBidiControl(r rune) bool {
+	if r == '؜' || r == '‎' || r == '‏' {
+		return true
+	}
+	if r >= '‪' && r <= '‮' {
+		return true
+	}
+	return r >= '⁦' && r <= '⁩'
+}
+
 // Profile controls which normalization rules Normalize applies. The zero
 // Profile applies no rules at all (Normalize becomes NFD decomposition with
 // nothing folded or stripped).
@@ -113,22 +127,72 @@ type Profile struct {
 	FoldTaMarbuta bool
 	// FoldAlefMaksura folds ى to ي.
 	FoldAlefMaksura bool
+
+	// FoldPresentation expands Arabic presentation-form codepoints (Arabic
+	// Presentation Forms-A, U+FB50-U+FDFF, and Forms-B, U+FE70-U+FEFF —
+	// contextual letter shapes, ligatures such as ﻻ and ﷲ, and a few
+	// standalone-diacritic display forms) to the plain letter sequence
+	// each one stands for, via a table generated from the Unicode
+	// Character Database (see tables.go and gen/SOURCE.md). Unlike the
+	// other folds in this struct, this one resolves an alternate
+	// *encoding* of the same text rather than merging distinct spellings,
+	// so it runs even under ProfileStrict — see the Profile doc comment's
+	// note on NFD for why an analogous unconditional step (canonical
+	// decomposition) already applies regardless of profile. It is off for
+	// ProfileLucene/ProfileCAMeL only because neither real library does
+	// this, and those two profiles exist specifically to match what the
+	// real library does.
+	FoldPresentation bool
+
+	// StripJoiners removes ZWNJ (U+200C) and ZWJ (U+200D).
+	StripJoiners bool
+	// StripBidi removes the Unicode Bidi_Control codepoints: ALM
+	// (U+061C), LRM/RLM (U+200E/F), LRE/RLE/PDF/LRO/RLO (U+202A-U+202E),
+	// and LRI/RLI/FSI/PDI (U+2066-U+2069).
+	StripBidi bool
+
+	// FoldDigits folds Arabic-Indic (U+0660-U+0669) and Extended
+	// Arabic-Indic (U+06F0-U+06F9, used for Persian/Urdu) digits to ASCII
+	// 0-9.
+	FoldDigits bool
+	// FoldPunctuation folds Arabic comma/semicolon/question
+	// mark/percent/decimal-and-thousands-separators/full-stop (،؛؟٪٫٬۔)
+	// to their ASCII equivalents.
+	FoldPunctuation bool
+
+	// StripQuranic removes the Quranic annotation and recitation-mark
+	// block, U+06D6-U+06ED. That range mixes combining marks (Mn) with a
+	// few format/symbol/modifier-letter characters (end-of-ayah,
+	// start-of-rub-el-hizb, small waw/yeh, place-of-sajdah) that
+	// TashkilScope's Mn-based matching would never catch on its own, so
+	// this is a dedicated, category-agnostic range check rather than a
+	// TashkilScope value — see docs/NORMALIZATION.md.
+	StripQuranic bool
 }
 
 var (
 	// ProfileSearch is agrep's original, default behavior: every fold
-	// below is enabled and every Unicode non-spacing mark is stripped.
-	// This is the default profile; its output must never silently change
-	// between releases.
+	// below is enabled and every Unicode non-spacing mark is stripped, and
+	// (as of Phase 4) presentation forms are expanded and joiners, bidi
+	// controls, and Quranic annotation marks are stripped — see the
+	// deliberate exception to "never silently change" documented in
+	// plan.md's Phase 4 completion notes: this fixes the presentation-form
+	// defect flagged from the very first version of this project's plan,
+	// done explicitly and tested, not silently. Digit and punctuation
+	// folding stay off by default — see ProfileLoose.
 	ProfileSearch = Profile{
-		StripTashkil:    true,
-		TashkilScope:    TashkilAllMn,
-		StripTatweel:    true,
-		FoldAlefHamza:   true,
-		FoldAlefWasla:   true,
-		FoldHamzaSeat:   true,
-		FoldTaMarbuta:   true,
-		FoldAlefMaksura: true,
+		StripTashkil:     true,
+		TashkilScope:     TashkilAllMn,
+		StripTatweel:     true,
+		FoldAlefHamza:    true,
+		FoldAlefWasla:    true,
+		FoldHamzaSeat:    true,
+		FoldTaMarbuta:    true,
+		FoldAlefMaksura:  true,
+		FoldPresentation: true,
+		StripJoiners:     true,
+		StripBidi:        true,
+		StripQuranic:     true,
 	}
 
 	// ProfileStrict strips only cosmetic marks (tashkil, tatweel) and
@@ -138,27 +202,41 @@ var (
 	// differently-spelled key, not that it is byte-identical to the
 	// original spelling — a kept hamza mark stays in its NFD-decomposed
 	// form (base letter + standalone combining mark) rather than being
-	// recomposed to its precomposed codepoint.
+	// recomposed to its precomposed codepoint. Presentation forms are
+	// still expanded (see FoldPresentation's doc: that's an encoding fix,
+	// not an orthographic merge, so it applies even here), and joiners,
+	// bidi controls, and Quranic marks are still stripped, since none of
+	// those represent a letter-level distinction either.
 	ProfileStrict = Profile{
-		StripTashkil: true,
-		TashkilScope: TashkilAllMn,
-		StripTatweel: true,
+		StripTashkil:     true,
+		TashkilScope:     TashkilAllMn,
+		StripTatweel:     true,
+		FoldPresentation: true,
+		StripJoiners:     true,
+		StripBidi:        true,
+		StripQuranic:     true,
 	}
 
-	// ProfileLoose enables every fold this phase defines. It is currently
-	// identical to ProfileSearch: there is nothing left to turn on until
-	// Phase 4 adds digit/punctuation folding and Phase 5/7/9 add language
-	// and Rasm folding, at which point ProfileLoose enables those too and
-	// ProfileSearch does not.
+	// ProfileLoose enables every fold this build defines. As of Phase 4,
+	// that means digit and punctuation folding — the two rules still
+	// marked "Opt-in" in plan.md's Phase 4 rule table — are what actually
+	// make it diverge from ProfileSearch; everything else the two share.
+	// Phase 5/7/9's language and Rasm folding will add further divergence.
 	ProfileLoose = Profile{
-		StripTashkil:    true,
-		TashkilScope:    TashkilAllMn,
-		StripTatweel:    true,
-		FoldAlefHamza:   true,
-		FoldAlefWasla:   true,
-		FoldHamzaSeat:   true,
-		FoldTaMarbuta:   true,
-		FoldAlefMaksura: true,
+		StripTashkil:     true,
+		TashkilScope:     TashkilAllMn,
+		StripTatweel:     true,
+		FoldAlefHamza:    true,
+		FoldAlefWasla:    true,
+		FoldHamzaSeat:    true,
+		FoldTaMarbuta:    true,
+		FoldAlefMaksura:  true,
+		FoldPresentation: true,
+		StripJoiners:     true,
+		StripBidi:        true,
+		StripQuranic:     true,
+		FoldDigits:       true,
+		FoldPunctuation:  true,
 	}
 
 	// ProfileLucene reproduces Apache Lucene's ArabicNormalizer: folds the
@@ -171,7 +249,10 @@ var (
 	// implementation's NFD-based engine may decompose non-Arabic
 	// precomposed characters (e.g. Latin é) that real Lucene, which never
 	// decomposes anything, would leave untouched — the fidelity claim
-	// covers Arabic-script normalization only.
+	// covers Arabic-script normalization only. FoldPresentation,
+	// StripJoiners, StripBidi, FoldDigits, FoldPunctuation, and
+	// StripQuranic (Phase 4) all stay off: Lucene's normalizer does none
+	// of them.
 	ProfileLucene = Profile{
 		StripTashkil:    true,
 		TashkilScope:    TashkilLuceneHarakat,
@@ -195,6 +276,12 @@ var (
 	// own normalize_unicode composes (NFKC) rather than decomposes, so it
 	// leaves precomposed non-Arabic characters like Latin é untouched,
 	// while this engine's NFD-first pass may decompose them.
+	// FoldPresentation, StripJoiners, StripBidi, FoldDigits,
+	// FoldPunctuation, and StripQuranic (Phase 4) all stay off: none of
+	// them are part of the normalize_alef_ar/dediac_ar family this profile
+	// reproduces (NFKC-based presentation-form folding lives in CAMeL
+	// Tools' separate normalize_unicode function, deliberately excluded
+	// here — see the Phase 3 completion notes in plan.md for why).
 	ProfileCAMeL = Profile{
 		StripTashkil:    true,
 		TashkilScope:    TashkilCAMeLDiac,
@@ -215,6 +302,14 @@ func (p Profile) Normalize(s string) string {
 		return ""
 	}
 
+	if p.FoldPresentation {
+		// Presentation forms carry only *compatibility* decompositions,
+		// which NFD ignores, so this has to run before (and separately
+		// from) the NFD step below or these codepoints survive completely
+		// unfolded. See expandPresentationForms's doc comment.
+		s = expandPresentationForms(s)
+	}
+
 	decomposed := s
 	if !norm.NFD.IsNormalString(s) {
 		decomposed = norm.NFD.String(s)
@@ -228,8 +323,8 @@ func (p Profile) Normalize(s string) string {
 		drop := false
 		out := r
 
-		switch r {
-		case 'ٓ', 'ٔ', 'ٕ': // combining madda/hamza-above/hamza-below
+		switch {
+		case r == 'ٓ' || r == 'ٔ' || r == 'ٕ': // combining madda/hamza-above/hamza-below
 			switch {
 			case lastBase == 'ا': // follows alef: آ, أ, or إ
 				drop = p.FoldAlefHamza
@@ -238,19 +333,53 @@ func (p Profile) Normalize(s string) string {
 			default: // unrecognized context: treat as an ordinary mark
 				drop = p.StripTashkil && tashkilScopeMatches(p.TashkilScope, r)
 			}
-		case 'ـ': // Tatweel
+		case r == 'ـ': // Tatweel
 			drop = p.StripTatweel
-		case 'ٱ': // Alef wasla
+		case r == 'ٱ': // Alef wasla
 			if p.FoldAlefWasla {
 				out = 'ا'
 			}
-		case 'ة': // Ta marbuta
+		case r == 'ة': // Ta marbuta
 			if p.FoldTaMarbuta {
 				out = 'ه'
 			}
-		case 'ى': // Alef maksura
+		case r == 'ى': // Alef maksura
 			if p.FoldAlefMaksura {
 				out = 'ي'
+			}
+		case r == '‌' || r == '‍': // ZWNJ, ZWJ
+			drop = p.StripJoiners
+		case isBidiControl(r): // ALM, LRM/RLM, LRE/RLE/PDF/LRO/RLO, LRI/RLI/FSI/PDI
+			drop = p.StripBidi
+		case r >= 'ۖ' && r <= 'ۭ': // Quranic annotation/recitation marks
+			drop = p.StripQuranic
+		case r >= '٠' && r <= '٩': // Arabic-Indic digit
+			if p.FoldDigits {
+				out = '0' + (r - '٠')
+			}
+		case r >= '۰' && r <= '۹': // Extended Arabic-Indic (Persian/Urdu) digit
+			if p.FoldDigits {
+				out = '0' + (r - '۰')
+			}
+		case r == '،' || r == '٬': // Arabic comma, Arabic thousands separator
+			if p.FoldPunctuation {
+				out = ','
+			}
+		case r == '؛': // Arabic semicolon
+			if p.FoldPunctuation {
+				out = ';'
+			}
+		case r == '؟': // Arabic question mark
+			if p.FoldPunctuation {
+				out = '?'
+			}
+		case r == '٪': // Arabic percent sign
+			if p.FoldPunctuation {
+				out = '%'
+			}
+		case r == '٫' || r == '۔': // Arabic decimal separator, Arabic full stop
+			if p.FoldPunctuation {
+				out = '.'
 			}
 		default: // includes bare ا, و, ي themselves (out == r, never dropped)
 			drop = p.StripTashkil && tashkilScopeMatches(p.TashkilScope, r)

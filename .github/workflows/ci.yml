@@ -45,6 +45,16 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      - name: Check generated code is up to date
+        shell: bash
+        run: |
+          go generate ./arabic/...
+          if [[ -n "$(git status --porcelain arabic/tables.go)" ]]; then
+            echo "arabic/tables.go is out of date with arabic/gen/main.go or arabic/gen/UnicodeData.txt:"
+            git diff arabic/tables.go
+            exit 1
+          fi
+
       - name: Static analysis (staticcheck)
         run: |
           go install honnef.co/go/tools/cmd/staticcheck@latest
