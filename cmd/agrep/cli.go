@@ -61,6 +61,7 @@ Output options:
 Normalization options:
       --max-line-bytes N          reject longer logical lines (0 means unlimited)
       --profile NAME              search|strict|loose|lucene|camel (default: search)
+      --lang LIST                 ar,fa,ur,ps,ku,ug (default: ar)
       --keep-hamza                don't fold hamza/madda variants (أ إ آ ٱ ؤ ئ)
       --keep-tamarbuta            don't fold ة to ه
       --keep-tashkil              don't strip tashkil (diacritics)
@@ -151,6 +152,7 @@ type cliOptions struct {
 	lineNumbers       bool
 	maxLineBytes      uint64
 	profileName       string
+	languageNames     string
 	overrides         profileOverrides
 	showHelp          bool
 	showVersion       bool
@@ -227,6 +229,11 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		}
 	}
 	profile, err := resolveProfile(opts.profileName, opts.overrides)
+	if err != nil {
+		fmt.Fprintf(stderr, "agrep: %v\n", err)
+		return 2
+	}
+	profile.Languages, err = arabic.ParseLanguages(opts.languageNames)
 	if err != nil {
 		fmt.Fprintf(stderr, "agrep: %v\n", err)
 		return 2
@@ -588,6 +595,7 @@ func parseArgs(args []string, stdout, stderr io.Writer) (cliOptions, []string, i
 	fs.BoolVar(&opts.translitOut, "translit-out", false, "render output as Buckwalter")
 	fs.Uint64Var(&opts.maxLineBytes, "max-line-bytes", 0, "maximum logical line size")
 	fs.StringVar(&opts.profileName, "profile", "search", "normalization profile")
+	fs.StringVar(&opts.languageNames, "lang", "ar", "Arabic-script languages")
 	fs.BoolVar(&opts.overrides.keepHamza, "keep-hamza", false, "don't fold hamza/madda variants")
 	fs.BoolVar(&opts.overrides.keepTaMarbuta, "keep-tamarbuta", false, "don't fold ta-marbuta to heh")
 	fs.BoolVar(&opts.overrides.keepTashkil, "keep-tashkil", false, "don't strip tashkil")

@@ -2,10 +2,10 @@
 
 [![CI](https://github.com/MohamedElashri/agrep/actions/workflows/ci.yml/badge.svg)](https://github.com/MohamedElashri/agrep/actions/workflows/ci.yml)
 
-`agrep` (Arabic Grep) searches UTF-8 text while tolerating Arabic tashkil,
-tatweel, canonical Unicode differences, and common orthographic variants. It is
-small enough for shell use and has a stable JSON Lines mode for tool-calling
-agents.
+`agrep` (Arabic Grep) searches Arabic-script UTF-8 text while tolerating
+tashkil, tatweel, canonical Unicode differences, and explicitly selected
+orthographic variants. It is small enough for shell use and has a stable JSON
+Lines mode for tool-calling agents.
 
 Search Arabic from a Latin keyboard without an IME:
 
@@ -73,6 +73,7 @@ agrep --regex '^مدرس[هة]$' words.txt
 agrep -o "مدينه" people.txt
 agrep --encoding=auto "مدينه" legacy.txt
 agrep --translit-out --translit=buckwalter "ktAb" corpus.txt
+agrep --lang=ar,fa "كتاب" mixed-arabic-persian.txt
 ```
 
 Recursive searches honor `.gitignore` files by default. Use `--no-ignore` to
@@ -94,6 +95,13 @@ as `ß` to `ss`.
 matches back. `-o` likewise prints the exact original spelling, including
 tashkil and tatweel inside the mapped span.
 
+`--lang=ar|fa|ur|ps|ku|ug` selects one or more Arabic-script orthographies;
+the default is Arabic. A single language preserves its distinct alphabet,
+while a mixed selection such as `--lang=ar,fa` folds shared Kaf and Yeh forms
+for cross-language search. ZWNJ is preserved for Persian, Sorani Kurdish, and
+Uyghur and remains word-internal for `-w`. See
+[docs/LANGUAGES.md](docs/LANGUAGES.md) for the exact fold table and rationale.
+
 Legacy CP1256, ISO-8859-6, and UTF-16 input can be decoded with `--encoding`.
 `--translit=buckwalter|arabtex|iso233` converts a Latin query to Arabic before
 matching, while `--translit-out` renders output as Buckwalter and remaps spans
@@ -112,7 +120,7 @@ output failure, so consumers must honor the final exit status.
 ## Normalization
 
 Both query and input lines are normalized with Unicode NFD, then, under the
-default profile (`search`):
+default profile (`search`) and language (`ar`):
 
 - Arabic presentation forms (contextual letter shapes, ligatures like `ﻻ`
   and `ﷲ`) are expanded to plain letters, which is what lets `agrep` match
@@ -152,8 +160,8 @@ agrep --profile=camel  "مدرسه" book.txt   # matches CAMeL Tools' normalize_
 | `search` (default) | agrep's original behavior, plus (as of the presentation-form/joiner/bidi/Quranic-mark rules above) fixes for text extracted from PDFs and copied from right-to-left web pages. Digit and punctuation folding stay off. |
 | `strict` | Strips only cosmetic/encoding-level marks (tashkil, tatweel, presentation forms, joiners, bidi marks, Quranic marks); keeps every letter-level distinction (hamza, ta-marbuta, alef-maksura). |
 | `loose` | Every fold this build defines, including digit (`١٢٣`→`123`) and punctuation (`،`→`,`) folding. |
-| `lucene` | Matches Apache Lucene's `ArabicNormalizer`, verified against its source. |
-| `camel` | Matches the normalization CAMeL Tools users compose from `normalize_alef_ar`/`dediac_ar` and related functions, verified against their source. |
+| `lucene` | Matches Apache Lucene's `ArabicNormalizer` with `--lang=ar`, verified against its source. |
+| `camel` | Matches the normalization CAMeL Tools users compose from `normalize_alef_ar`/`dediac_ar` and related functions with `--lang=ar`, verified against their source. |
 
 Nine `--keep-*`/`--fold-*` flags apply on top of whichever `--profile` was
 selected: `--keep-hamza`, `--keep-tamarbuta`, `--keep-tashkil`,
@@ -165,6 +173,10 @@ does, codepoint by codepoint, with citations to the Unicode Character
 Database and to the Lucene and CAMeL Tools source each preset is checked
 against.
 
+Language selection composes with profiles. Selecting a non-Arabic language on
+top of `lucene` or `camel` is an explicit agrep extension, not part of the
+upstream compatibility claim.
+
 ## Library use
 
 The CLI is a thin wrapper around three importable packages:
@@ -173,7 +185,8 @@ The CLI is a thin wrapper around three importable packages:
   profile's normalization) and `arabic.Profile`, with `Profile.Normalize`
   for any of the five built-in presets (`ProfileSearch`, `ProfileStrict`,
   `ProfileLoose`, `ProfileLucene`, `ProfileCAMeL`) or a custom combination
-  of rules. `Profile.NormalizeMapped` returns the identical key plus a byte
+  of rules. `Profile.Languages` and `arabic.ParseLanguages` select
+  language-aware equivalences. `Profile.NormalizeMapped` returns the identical key plus a byte
   index back to the original string; `arabic.MapSpan` handles expansion
   boundaries correctly. No CLI or I/O dependency.
 - [`match`](match): `match.NewLiteral(query string, p arabic.Profile)
@@ -236,6 +249,7 @@ matching and line-scanning never panic on arbitrary input:
 go test -run '^$' -fuzz FuzzProfileNormalizeIdempotent -fuzztime 30s ./arabic
 go test -run '^$' -fuzz FuzzProfileNormalizeValidUTF8 -fuzztime 30s ./arabic
 go test -run '^$' -fuzz FuzzProfileNormalizeNoPanic -fuzztime 30s ./arabic
+go test -run '^$' -fuzz FuzzLanguageNormalizeProperties -fuzztime 30s ./arabic
 go test -run '^$' -fuzz FuzzNewLiteralNoPanic -fuzztime 30s ./match
 go test -run '^$' -fuzz FuzzSearchNoPanic -fuzztime 30s ./scan
 ```

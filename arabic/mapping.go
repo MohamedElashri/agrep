@@ -29,7 +29,7 @@ func (p Profile) NormalizeMappedInto(s string, dst []int32) (key string, idx []i
 		return "", append(dst, 0)
 	}
 
-	tokens := mappedDecompose(s, p.FoldPresentation)
+	tokens := mappedDecompose(s, p.FoldPresentation, p.Languages)
 	kept := tokens[:0]
 	lastBase := rune(0)
 	for _, token := range tokens {
@@ -87,7 +87,7 @@ type mappedRune struct {
 	start, end int
 }
 
-func mappedDecompose(s string, foldPresentation bool) []mappedRune {
+func mappedDecompose(s string, foldPresentation bool, languages LanguageSet) []mappedRune {
 	tokens := make([]mappedRune, 0, utf8.RuneCountInString(s))
 	for offset := 0; offset < len(s); {
 		r, size := utf8.DecodeRuneInString(s[offset:])
@@ -98,6 +98,7 @@ func mappedDecompose(s string, foldPresentation bool) []mappedRune {
 				expansion = mapped
 			}
 		}
+		expansion = foldLanguagePrecomposed(expansion, languages)
 		tokens = appendMappedDecomposition(tokens, expansion, offset, end)
 		offset = end
 	}

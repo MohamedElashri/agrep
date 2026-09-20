@@ -201,6 +201,27 @@ func TestSearchWordRegexpUsesOriginalBoundaries(t *testing.T) {
 	}
 }
 
+func TestSearchWordRegexpTreatsPersianZWNJAsWordInternal(t *testing.T) {
+	p := arabic.ProfileSearch
+	p.Languages = arabic.LanguagePersian
+	m, err := match.NewLiteral("می", p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := "می\u200cروم\nمی،\n"
+	var lines []int64
+	found, err := Search(strings.NewReader(input), m, Options{WordRegexp: true}, func(mt Match) error {
+		lines = append(lines, mt.Line)
+		return nil
+	})
+	if err != nil || !found {
+		t.Fatalf("Search = found %v, err %v", found, err)
+	}
+	if len(lines) != 1 || lines[0] != 2 {
+		t.Fatalf("word matches = %v; want [2]", lines)
+	}
+}
+
 // FuzzSearchNoPanic feeds arbitrary input bytes, an arbitrary query, and an
 // arbitrary profile through match.NewLiteral and Search, and only requires
 // that it returns (an error is fine; a panic is not). It exercises the

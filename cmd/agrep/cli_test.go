@@ -204,6 +204,55 @@ func TestRunUnknownProfileExitsWithError(t *testing.T) {
 	}
 }
 
+func TestRunLanguageSelectionChangesMatching(t *testing.T) {
+	input := "کتاب\n"
+	query := "كتاب"
+	tests := []struct {
+		name string
+		args []string
+		want int
+	}{
+		{"default Arabic preserves Persian kaf", []string{query}, 1},
+		{"Persian alone preserves Arabic and Persian kaf", []string{"--lang=fa", query}, 1},
+		{"Arabic and Persian cross-fold shared letters", []string{"--lang=ar,fa", query}, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr strings.Builder
+			code := run(tt.args, strings.NewReader(input), &stdout, &stderr)
+			if code != tt.want || stderr.Len() != 0 {
+				t.Fatalf("code=%d stdout=%q stderr=%q; want code %d", code, stdout.String(), stderr.String(), tt.want)
+			}
+		})
+	}
+}
+
+func TestRunRejectsUnknownLanguage(t *testing.T) {
+	var stdout, stderr strings.Builder
+	code := run([]string{"--lang=xx", "x"}, strings.NewReader("x\n"), &stdout, &stderr)
+	if code != 2 || !strings.Contains(stderr.String(), "unknown language") {
+		t.Fatalf("code=%d stderr=%q; want exit 2 with an unknown-language error", code, stderr.String())
+	}
+}
+
+func TestRunLanguageFoldMapsOriginalSpan(t *testing.T) {
+	var stdout, stderr strings.Builder
+	code := run([]string{"--lang=ar,fa", "--json", "كتاب"}, strings.NewReader("کتاب\n"), &stdout, &stderr)
+	want := "{\"line\":1,\"text\":\"کتاب\",\"spans\":[[0,8]]}\n"
+	if code != 0 || stdout.String() != want || stderr.Len() != 0 {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+}
+
+func TestRunPersianWordBoundaryKeepsZWNJInsideWord(t *testing.T) {
+	var stdout, stderr strings.Builder
+	input := "می\u200cروم\nمی،\n"
+	code := run([]string{"--lang=fa", "-w", "می"}, strings.NewReader(input), &stdout, &stderr)
+	if code != 0 || stdout.String() != "می،\n" || stderr.Len() != 0 {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+}
+
 // TestRunProfileFlagChangesMatching is an end-to-end check that --profile
 // actually reaches the matcher: a heh-spelled query matches a ta-marbuta
 // haystack line under the default profile (which folds the two together)

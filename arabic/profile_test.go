@@ -20,6 +20,9 @@ func TestProfileValidate(t *testing.T) {
 	if err := (Profile{TashkilScope: 99}).Validate(); err == nil {
 		t.Fatal("Validate() with an out-of-range TashkilScope returned nil")
 	}
+	if err := (Profile{Languages: LanguageSet(0x80)}).Validate(); err == nil {
+		t.Fatal("Validate() with unknown language bits returned nil")
+	}
 }
 
 // TestNormalizePackageFuncIsProfileSearch locks in Phase 3's work item 2:
@@ -184,10 +187,12 @@ func TestProfileCAMeL(t *testing.T) {
 }
 
 // profileBit indexes a Profile bool field for profileFromBits/bitsFromProfile.
-// Adding a field in a later phase (Langs, Rasm, ...) means adding one more
-// constant here and one more line in each of those two functions. An
-// explicit, growing positional-bool parameter list on every fuzz function
-// does not scale the same way.
+// Adding another boolean field in a later phase (Rasm, for example) means
+// adding one more constant here and one more line in each of those two
+// functions. Multi-valued dimensions such as Languages get a separate fuzz
+// input, as FuzzLanguageNormalizeProperties demonstrates. An explicit,
+// growing positional-bool parameter list on every fuzz function does not
+// scale the same way.
 type profileBit uint
 
 const (

@@ -30,16 +30,17 @@ const (
 	TashkilCAMeLDiac
 )
 
-// Validate reports whether p's fields hold a recognized value. Only
-// TashkilScope can currently be out of range (constructed directly rather
-// than through a preset).
+// Validate reports whether p's fields hold recognized values.
 func (p Profile) Validate() error {
 	switch p.TashkilScope {
 	case TashkilAllMn, TashkilLuceneHarakat, TashkilCAMeLDiac:
-		return nil
 	default:
 		return errors.New("arabic: invalid TashkilScope")
 	}
+	if p.Languages&^LanguageAll != 0 {
+		return errors.New("arabic: invalid Languages")
+	}
+	return nil
 }
 
 func tashkilScopeMatches(scope TashkilScope, r rune) bool {
@@ -99,6 +100,10 @@ func isBidiControl(r rune) bool {
 // back to ordinary StripTashkil/TashkilScope handling, like any other
 // combining mark.
 type Profile struct {
+	// Languages selects language-aware Arabic-script equivalences. Presets
+	// default to Arabic only, preserving all pre-Phase-8 behavior.
+	Languages LanguageSet
+
 	// StripTashkil removes combining marks selected by TashkilScope. It
 	// never removes the hamza/madda marks covered by FoldAlefHamza or
 	// FoldHamzaSeat when they're in their recognized context; see above.
@@ -144,7 +149,8 @@ type Profile struct {
 	// real library does.
 	FoldPresentation bool
 
-	// StripJoiners removes ZWNJ (U+200C) and ZWJ (U+200D).
+	// StripJoiners removes ZWJ (U+200D) and, unless Languages contains a
+	// language where it is orthographic, ZWNJ (U+200C).
 	StripJoiners bool
 	// StripBidi removes the Unicode Bidi_Control codepoints: ALM
 	// (U+061C), LRM/RLM (U+200E/F), LRE/RLE/PDF/LRO/RLO (U+202A-U+202E),
@@ -181,6 +187,7 @@ var (
 	// done explicitly and tested, not silently. Digit and punctuation
 	// folding stay off by default; see ProfileLoose.
 	ProfileSearch = Profile{
+		Languages:        LanguageArabic,
 		StripTashkil:     true,
 		TashkilScope:     TashkilAllMn,
 		StripTatweel:     true,
@@ -208,6 +215,7 @@ var (
 	// bidi controls, and Quranic marks are still stripped, since none of
 	// those represent a letter-level distinction either.
 	ProfileStrict = Profile{
+		Languages:        LanguageArabic,
 		StripTashkil:     true,
 		TashkilScope:     TashkilAllMn,
 		StripTatweel:     true,
@@ -221,8 +229,10 @@ var (
 	// that means digit and punctuation folding (the two rules still
 	// marked "Opt-in" in plan.md's Phase 4 rule table) are what actually
 	// make it diverge from ProfileSearch; everything else the two share.
-	// Phase 5/7/9's language and Rasm folding will add further divergence.
+	// A caller can independently select language-aware equivalences through
+	// Languages. A future rasm mode may add further divergence.
 	ProfileLoose = Profile{
+		Languages:        LanguageArabic,
 		StripTashkil:     true,
 		TashkilScope:     TashkilAllMn,
 		StripTatweel:     true,
@@ -254,6 +264,7 @@ var (
 	// StripQuranic (Phase 4) all stay off: Lucene's normalizer does none
 	// of them.
 	ProfileLucene = Profile{
+		Languages:       LanguageArabic,
 		StripTashkil:    true,
 		TashkilScope:    TashkilLuceneHarakat,
 		StripTatweel:    true,
@@ -283,6 +294,7 @@ var (
 	// Tools' separate normalize_unicode function, deliberately excluded
 	// here; see the Phase 3 completion notes in plan.md for why).
 	ProfileCAMeL = Profile{
+		Languages:       LanguageArabic,
 		StripTashkil:    true,
 		TashkilScope:    TashkilCAMeLDiac,
 		StripTatweel:    false,
@@ -294,9 +306,10 @@ var (
 	}
 )
 
-// Normalize returns a comparison key for s under p. NFD decomposition runs
-// first so canonically equivalent Unicode spellings become identical; see
-// the Profile doc comment for how that interacts with hamza folding.
+// Normalize returns a comparison key for s under p. Presentation expansion
+// and language-specific precomposed substitutions run before NFD; the latter
+// then makes canonically equivalent Unicode spellings identical. See the
+// Profile doc comment for how decomposition interacts with hamza folding.
 func (p Profile) Normalize(s string) string {
 	if s == "" {
 		return ""
@@ -309,6 +322,7 @@ func (p Profile) Normalize(s string) string {
 		// unfolded. See expandPresentationForms's doc comment.
 		s = expandPresentationForms(s)
 	}
+	s = foldLanguagePrecomposed(s, p.Languages)
 
 	decomposed := s
 	if !norm.NFD.IsNormalString(s) {
@@ -334,6 +348,12 @@ func (p Profile) Normalize(s string) string {
 			}
 		case r == 'ـ':
 			drop = p.StripTatweel
+		case r == 'ک' && p.Languages.crossesArabic():
+			out = 'ك'
+		case r == 'ی' && p.Languages.crossesArabic():
+			out = 'ي'
+		case r == 'ہ' && p.Languages.Has(LanguageArabic|LanguageUrdu):
+			out = 'ه'
 		case r == 'ٱ':
 			if p.FoldAlefWasla {
 				out = 'ا'
@@ -346,7 +366,9 @@ func (p Profile) Normalize(s string) string {
 			if p.FoldAlefMaksura {
 				out = 'ي'
 			}
-		case r == '‌' || r == '‍':
+		case r == '‌':
+			drop = p.StripJoiners && !p.Languages.PreservesZWNJ()
+		case r == '‍':
 			drop = p.StripJoiners
 		case isBidiControl(r):
 			drop = p.StripBidi
@@ -448,6 +470,12 @@ func (p Profile) transformRune(r, lastBase rune) (out rune, drop bool, nextBase 
 		}
 	case r == 'ـ':
 		drop = p.StripTatweel
+	case r == 'ک' && p.Languages.crossesArabic():
+		out = 'ك'
+	case r == 'ی' && p.Languages.crossesArabic():
+		out = 'ي'
+	case r == 'ہ' && p.Languages.Has(LanguageArabic|LanguageUrdu):
+		out = 'ه'
 	case r == 'ٱ':
 		if p.FoldAlefWasla {
 			out = 'ا'
@@ -460,7 +488,9 @@ func (p Profile) transformRune(r, lastBase rune) (out rune, drop bool, nextBase 
 		if p.FoldAlefMaksura {
 			out = 'ي'
 		}
-	case r == '‌' || r == '‍':
+	case r == '‌':
+		drop = p.StripJoiners && !p.Languages.PreservesZWNJ()
+	case r == '‍':
 		drop = p.StripJoiners
 	case isBidiControl(r):
 		drop = p.StripBidi

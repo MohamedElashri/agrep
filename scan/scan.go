@@ -121,7 +121,7 @@ func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) erro
 					continue
 				}
 				start, end := arabic.MapSpan(idx, span.Start, span.End)
-				if opts.WordRegexp && !wordBounded(line, start, end) {
+				if opts.WordRegexp && !wordBounded(line, start, end, profile.Languages) {
 					continue
 				}
 				matched = true
@@ -182,27 +182,28 @@ func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) erro
 	return found, nil
 }
 
-func wordBounded(text string, start, end int) bool {
+func wordBounded(text string, start, end int, languages arabic.LanguageSet) bool {
 	if start < 0 || end < start || end > len(text) {
 		return false
 	}
 	if start > 0 {
 		before, _ := utf8.DecodeLastRuneInString(text[:start])
-		if isWordRune(before) {
+		if isWordRune(before, languages) {
 			return false
 		}
 	}
 	if end < len(text) {
 		after, _ := utf8.DecodeRuneInString(text[end:])
-		if isWordRune(after) {
+		if isWordRune(after, languages) {
 			return false
 		}
 	}
 	return true
 }
 
-func isWordRune(r rune) bool {
-	return r == '_' || unicode.IsLetter(r) || unicode.IsNumber(r) || unicode.IsMark(r)
+func isWordRune(r rune, languages arabic.LanguageSet) bool {
+	return r == '_' || (r == '\u200c' && languages.PreservesZWNJ()) ||
+		unicode.IsLetter(r) || unicode.IsNumber(r) || unicode.IsMark(r)
 }
 
 // readLine assembles one logical line from ReadSlice fragments. When a limit

@@ -111,6 +111,9 @@ jobs:
       - name: Fuzz mapped normalization equivalence (full flag space)
         run: go test -run '^$' -fuzz '^FuzzNormalizeMappedMatchesNormalize$' -fuzztime 30s ./arabic
 
+      - name: Fuzz language normalization and mapped equivalence
+        run: go test -run '^$' -fuzz '^FuzzLanguageNormalizeProperties$' -fuzztime 30s ./arabic
+
       - name: Fuzz literal matcher no panic
         run: go test -run '^$' -fuzz '^FuzzNewLiteralNoPanic$' -fuzztime 20s ./match
 

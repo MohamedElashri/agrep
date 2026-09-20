@@ -1,9 +1,10 @@
 # Normalization
 
 `arabic.Profile` controls which rules `Normalize` applies. Every profile
-first expands Arabic presentation forms if `FoldPresentation` is on, then
-decomposes the input with Unicode NFD, then applies the remaining rules
-below in a single pass. This document is the source of truth for what each
+first expands Arabic presentation forms if `FoldPresentation` is on, applies
+the selected language's precomposed substitutions, decomposes the input with
+Unicode NFD, then applies the remaining rules below in a single pass. This
+document is the source of truth for what each
 rule does, which codepoints it touches, and which of the five built-in
 presets enable it. It exists so a claim like "matches Apache Lucene's
 ArabicNormalizer" is checkable against something more precise than the
@@ -21,7 +22,8 @@ code.
 | Fold ta-marbuta | `FoldTaMarbuta` | U+0629 → U+0647 | Ta-marbuta to heh. |
 | Fold alef-maksura | `FoldAlefMaksura` | U+0649 → U+064A | Alef-maksura to yeh. |
 | Fold presentation forms | `FoldPresentation` | U+FB50–U+FDFF, U+FE70–U+FEFF (731 codepoints) | See [Presentation forms](#presentation-forms) below. |
-| Strip joiners | `StripJoiners` | U+200C (ZWNJ), U+200D (ZWJ) | Removes the two zero-width joining-control characters. |
+| Language equivalences | `Languages` | See [Arabic-script languages](LANGUAGES.md) | Applies only explicitly selected cross-language equivalences and Persian U+06C0 handling. |
+| Strip joiners | `StripJoiners` | U+200C (ZWNJ), U+200D (ZWJ) | Removes joining controls, except ZWNJ when Persian, Sorani Kurdish, or Uyghur is selected. |
 | Strip bidi marks | `StripBidi` | U+061C, U+200E–U+200F, U+202A–U+202E, U+2066–U+2069 (12 codepoints) | Removes the Unicode `Bidi_Control` codepoints; see [Bidi and joiner marks](#bidi-and-joiner-marks). |
 | Fold digits | `FoldDigits` | U+0660–U+0669 (Arabic-Indic), U+06F0–U+06F9 (Extended Arabic-Indic) | Folds both digit ranges to ASCII `0`–`9`. |
 | Fold punctuation | `FoldPunctuation` | U+060C, U+061B, U+061F, U+066A, U+066B, U+066C, U+06D4 | Folds seven Arabic punctuation marks to their ASCII equivalents; see [Punctuation](#punctuation). |
@@ -131,10 +133,12 @@ of profile.
 `StripBidi` removes the twelve codepoints Unicode's `PropList.txt` marks
 `Bidi_Control`: U+061C (ARABIC LETTER MARK), U+200E–U+200F (LRM, RLM),
 U+202A–U+202E (LRE, RLE, PDF, LRO, RLO), and U+2066–U+2069 (LRI, RLI, FSI,
-PDI). `StripJoiners` removes U+200C (ZWNJ) and U+200D (ZWJ). Both are
-invisible formatting artifacts rather than textual content, common in text
-copied from right-to-left web pages. Like presentation forms, both are on
-by default even under `ProfileStrict`.
+PDI). Under the default Arabic language selection, `StripJoiners` removes
+U+200C (ZWNJ) and U+200D (ZWJ), which are commonly introduced as invisible
+formatting artifacts in copied text. ZWNJ is instead meaningful orthographic
+content in Persian, Sorani Kurdish, and Uyghur. Selecting any of those
+languages preserves it and makes it word-internal for `-w`; ZWJ remains
+controlled by `StripJoiners`. See [Arabic-script languages](LANGUAGES.md).
 
 ### Punctuation
 
@@ -168,15 +172,30 @@ and U+06E6 (ARABIC SMALL YEH) are modifier letters (`Lm`). A generic
 `StripQuranic` is its own category-agnostic range check rather than a
 fourth `TashkilScope` value.
 
+## Languages
+
+`Profile.Languages` is a bit set containing `LanguageArabic`,
+`LanguagePersian`, `LanguageUrdu`, `LanguagePashto`, `LanguageKurdish`, and
+`LanguageUyghur`. `ParseLanguages` accepts their CLI spellings
+`ar,fa,ur,ps,ku,ug`. All five presets select only `LanguageArabic`, so upgrading
+does not introduce a new fold without an explicit language choice. A zero-value
+custom `Profile` selects no language-aware rules.
+
+Language selection composes with every profile rather than defining six more
+presets. It runs in both `Normalize` and `NormalizeMapped`, and mapping retains
+the original byte range when a language fold changes a codepoint. Exact rules,
+ZWNJ behavior, and the rationale for preserving distinct letters are in
+[LANGUAGES.md](LANGUAGES.md).
+
 ## Presets
 
-| Preset | Strip tashkil | Tashkil scope | Strip tatweel | Fold alef-hamza | Fold wasla | Fold hamza-seat | Fold ta-marbuta | Fold alef-maksura |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `ProfileSearch` | ✓ | AllMn | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `ProfileStrict` | ✓ | AllMn | ✓ | - | - | - | - | - |
-| `ProfileLoose` | ✓ | AllMn | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `ProfileLucene` | ✓ | LuceneHarakat | ✓ | ✓ | - | - | ✓ | ✓ |
-| `ProfileCAMeL` | ✓ | CAMeLDiac | - | ✓ | ✓ | - | ✓ | ✓ |
+| Preset | Languages | Strip tashkil | Tashkil scope | Strip tatweel | Fold alef-hamza | Fold wasla | Fold hamza-seat | Fold ta-marbuta | Fold alef-maksura |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `ProfileSearch` | ar | ✓ | AllMn | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `ProfileStrict` | ar | ✓ | AllMn | ✓ | - | - | - | - | - |
+| `ProfileLoose` | ar | ✓ | AllMn | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `ProfileLucene` | ar | ✓ | LuceneHarakat | ✓ | ✓ | - | - | ✓ | ✓ |
+| `ProfileCAMeL` | ar | ✓ | CAMeLDiac | - | ✓ | ✓ | - | ✓ | ✓ |
 
 | Preset | Fold presentation | Strip joiners | Strip bidi | Strip Quranic | Fold digits | Fold punctuation |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -201,11 +220,12 @@ fourth `TashkilScope` value.
   the [Presentation forms](#presentation-forms) section above for why
   presentation-form expansion counts as encoding-level rather than
   orthographic.
-- **`ProfileLoose`** enables every fold this build defines. As of Phase 4,
+- **`ProfileLoose`** enables every general profile fold this build defines. As of Phase 8,
   digit and punctuation folding are what actually distinguish it from
   `ProfileSearch` (the two rules plan.md's Phase 4 table still marks
-  "Opt-in"), since everything else the two profiles now share. Phase
-  5/7/9's Rasm and language folding will add further divergence.
+  "Opt-in"), since everything else the two profiles now share. Language
+  selection is an independent dimension rather than a loose-only fold. A future
+  rasm option may add further divergence.
 - **`ProfileLucene`** and **`ProfileCAMeL`** leave every Phase 4 field off:
   neither real library does presentation-form expansion, joiner/bidi
   stripping, digit/punctuation folding, or Quranic-mark stripping, so
