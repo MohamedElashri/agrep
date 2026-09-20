@@ -27,7 +27,7 @@ Exit status: 0 if matched, 1 if not matched, 2 on an error.
 
 type cliOptions struct {
 	jsonOutput   bool
-	lineNumbers bool
+	lineNumbers  bool
 	maxLineBytes uint64
 	showHelp     bool
 	showVersion  bool
