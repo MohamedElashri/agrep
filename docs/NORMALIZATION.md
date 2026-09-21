@@ -23,6 +23,7 @@ code.
 | Fold alef-maksura | `FoldAlefMaksura` | U+0649 → U+064A | Alef-maksura to yeh. |
 | Fold presentation forms | `FoldPresentation` | U+FB50–U+FDFF, U+FE70–U+FEFF (731 codepoints) | See [Presentation forms](#presentation-forms) below. |
 | Language equivalences | `Languages` | See [Arabic-script languages](LANGUAGES.md) | Applies only explicitly selected cross-language equivalences and Persian U+06C0 handling. |
+| Fold rasm | `Rasm` | ب ت ث ن ي → ٮ; ج ح خ → ح; د ذ → د; ر ز → ر; س ش → س; ص ض → ص; ط ظ → ط; ع غ → ع; ف ق → ٯ | Removes i'jam distinctions from the listed Arabic consonants. See [Rasm and fuzzy matching](MATCHING.md). |
 | Strip joiners | `StripJoiners` | U+200C (ZWNJ), U+200D (ZWJ) | Removes joining controls, except ZWNJ when Persian, Sorani Kurdish, or Uyghur is selected. |
 | Strip bidi marks | `StripBidi` | U+061C, U+200E–U+200F, U+202A–U+202E, U+2066–U+2069 (12 codepoints) | Removes the Unicode `Bidi_Control` codepoints; see [Bidi and joiner marks](#bidi-and-joiner-marks). |
 | Fold digits | `FoldDigits` | U+0660–U+0669 (Arabic-Indic), U+06F0–U+06F9 (Extended Arabic-Indic) | Folds both digit ranges to ASCII `0`–`9`. |
@@ -187,6 +188,22 @@ the original byte range when a language fold changes a codepoint. Exact rules,
 ZWNJ behavior, and the rationale for preserving distinct letters are in
 [LANGUAGES.md](LANGUAGES.md).
 
+## Rasm
+
+`Profile.Rasm` folds the listed Arabic consonants to a dotless skeleton after
+the ordinary profile and language-specific letter substitutions. It is off in
+every preset except `ProfileLoose`; the CLI's `--rasm` enables it on top of any
+selected profile. Language-specific letters excluded from the table remain
+distinct.
+
+Rasm is more aggressive than ordinary spelling normalization and is intended
+for OCR, degraded scans, and early manuscripts. It produces false positives by
+design. Yeh with Hamza loses its hamza when rasm is enabled because the Yeh base
+becomes ٮ; preserving the combining hamza would make a second normalization
+pass interpret the already-dotless sequence differently. See
+[MATCHING.md](MATCHING.md) for examples, false-positive guidance, and how rasm
+composes with fuzzy matching.
+
 ## Presets
 
 | Preset | Languages | Strip tashkil | Tashkil scope | Strip tatweel | Fold alef-hamza | Fold wasla | Fold hamza-seat | Fold ta-marbuta | Fold alef-maksura |
@@ -197,13 +214,13 @@ ZWNJ behavior, and the rationale for preserving distinct letters are in
 | `ProfileLucene` | ar | ✓ | LuceneHarakat | ✓ | ✓ | - | - | ✓ | ✓ |
 | `ProfileCAMeL` | ar | ✓ | CAMeLDiac | - | ✓ | ✓ | - | ✓ | ✓ |
 
-| Preset | Fold presentation | Strip joiners | Strip bidi | Strip Quranic | Fold digits | Fold punctuation |
-| --- | --- | --- | --- | --- | --- | --- |
-| `ProfileSearch` | ✓ | ✓ | ✓ | ✓ | - | - |
-| `ProfileStrict` | ✓ | ✓ | ✓ | ✓ | - | - |
-| `ProfileLoose` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `ProfileLucene` | - | - | - | - | - | - |
-| `ProfileCAMeL` | - | - | - | - | - | - |
+| Preset | Fold presentation | Strip joiners | Strip bidi | Strip Quranic | Fold digits | Fold punctuation | Rasm |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `ProfileSearch` | ✓ | ✓ | ✓ | ✓ | - | - | - |
+| `ProfileStrict` | ✓ | ✓ | ✓ | ✓ | - | - | - |
+| `ProfileLoose` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `ProfileLucene` | - | - | - | - | - | - | - |
+| `ProfileCAMeL` | - | - | - | - | - | - | - |
 
 - **`ProfileSearch`** is agrep's original, default, fixed behavior. As of
   Phase 4 it also expands presentation forms and strips joiners, bidi
@@ -220,17 +237,19 @@ ZWNJ behavior, and the rationale for preserving distinct letters are in
   the [Presentation forms](#presentation-forms) section above for why
   presentation-form expansion counts as encoding-level rather than
   orthographic.
-- **`ProfileLoose`** enables every general profile fold this build defines. As of Phase 8,
-  digit and punctuation folding are what actually distinguish it from
-  `ProfileSearch` (the two rules plan.md's Phase 4 table still marks
-  "Opt-in"), since everything else the two profiles now share. Language
-  selection is an independent dimension rather than a loose-only fold. A future
-  rasm option may add further divergence.
+- **`ProfileLoose`** enables every general profile fold this build defines.
+  Digit, punctuation, and rasm folding distinguish it from `ProfileSearch`.
+  Language selection remains an independent dimension rather than a loose-only
+  fold.
 - **`ProfileLucene`** and **`ProfileCAMeL`** leave every Phase 4 field off:
   neither real library does presentation-form expansion, joiner/bidi
   stripping, digit/punctuation folding, or Quranic-mark stripping, so
   turning any of them on would break the fidelity claim these two profiles
   exist to make. Described in detail below.
+
+The compatibility claims also require `Rasm: false`, as set by both presets.
+Adding CLI `--rasm` is supported, but the result is an explicit agrep extension
+rather than Lucene or CAMeL behavior.
 
 ## `ProfileLucene`
 

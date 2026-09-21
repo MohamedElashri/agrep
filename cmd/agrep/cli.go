@@ -34,6 +34,7 @@ Search options:
   -v, --invert-match              select non-matching lines
   -w, --word-regexp               require original-text word boundaries
       --regex                     treat patterns as regular expressions over normalized text
+      --fuzzy[=N]                 allow N Levenshtein edits (default N: 1)
   -r, --recursive                 walk directories (or the current directory)
       --include GLOB              search only matching files (repeatable)
       --exclude GLOB              skip matching files/directories (repeatable)
@@ -62,6 +63,7 @@ Normalization options:
       --max-line-bytes N          reject longer logical lines (0 means unlimited)
       --profile NAME              search|strict|loose|lucene|camel (default: search)
       --lang LIST                 ar,fa,ur,ps,ku,ug (default: ar)
+      --rasm                      fold Arabic consonants to dotless skeletons
       --keep-hamza                don't fold hamza/madda variants (أ إ آ ٱ ؤ ئ)
       --keep-tamarbuta            don't fold ة to ه
       --keep-tashkil              don't strip tashkil (diacritics)
@@ -78,7 +80,7 @@ Profiles:
   search  agrep's original, default behavior: every fold enabled except
           digit/punctuation folding.
   strict  strips only cosmetic marks; keeps every letter-level distinction.
-  loose   every fold this build defines, including digit/punctuation folding.
+  loose   every fold this build defines, including digit/punctuation and rasm.
   lucene  matches Apache Lucene's ArabicNormalizer.
   camel   matches CAMeL Tools' normalize_alef_ar/dediac_ar family.
 See docs/NORMALIZATION.md for exactly what each profile does and why.
@@ -161,6 +163,7 @@ type cliOptions struct {
 	invertMatch       bool
 	wordRegexp        bool
 	regex             bool
+	fuzzy             fuzzyFlag
 	countOnly         bool
 	filesWithMatches  bool
 	filesWithoutMatch bool
@@ -194,6 +197,7 @@ type profileOverrides struct {
 	keepQuranicMarks      bool
 	foldDigits            bool
 	foldPunctuation       bool
+	rasm                  bool
 }
 
 type inputSpec struct {
@@ -241,6 +245,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	var matcher match.Matcher
 	if opts.regex {
 		matcher, err = match.NewRegex(queries, profile, opts.ignoreCase)
+	} else if opts.fuzzy.enabled {
+		matcher, err = match.NewFuzzy(queries, profile, opts.ignoreCase, opts.fuzzy.distance)
 	} else {
 		matcher, err = match.NewLiterals(queries, profile, opts.ignoreCase)
 	}
@@ -543,6 +549,9 @@ func resolveProfile(name string, o profileOverrides) (arabic.Profile, error) {
 	if o.foldPunctuation {
 		p.FoldPunctuation = true
 	}
+	if o.rasm {
+		p.Rasm = true
+	}
 	return p, nil
 }
 
@@ -565,6 +574,7 @@ func parseArgs(args []string, stdout, stderr io.Writer) (cliOptions, []string, i
 	fs.BoolVar(&opts.wordRegexp, "w", false, "require original-text word boundaries")
 	fs.BoolVar(&opts.wordRegexp, "word-regexp", false, "require original-text word boundaries")
 	fs.BoolVar(&opts.regex, "regex", false, "regular expressions over normalized text")
+	fs.Var(&opts.fuzzy, "fuzzy", "allow Levenshtein edits")
 	fs.BoolVar(&opts.countOnly, "c", false, "print match counts")
 	fs.BoolVar(&opts.countOnly, "count", false, "print match counts")
 	fs.BoolVar(&opts.filesWithMatches, "l", false, "print files with matches")
@@ -596,6 +606,7 @@ func parseArgs(args []string, stdout, stderr io.Writer) (cliOptions, []string, i
 	fs.Uint64Var(&opts.maxLineBytes, "max-line-bytes", 0, "maximum logical line size")
 	fs.StringVar(&opts.profileName, "profile", "search", "normalization profile")
 	fs.StringVar(&opts.languageNames, "lang", "ar", "Arabic-script languages")
+	fs.BoolVar(&opts.overrides.rasm, "rasm", false, "fold Arabic consonants to dotless skeletons")
 	fs.BoolVar(&opts.overrides.keepHamza, "keep-hamza", false, "don't fold hamza/madda variants")
 	fs.BoolVar(&opts.overrides.keepTaMarbuta, "keep-tamarbuta", false, "don't fold ta-marbuta to heh")
 	fs.BoolVar(&opts.overrides.keepTashkil, "keep-tashkil", false, "don't strip tashkil")
@@ -649,7 +660,45 @@ func parseArgs(args []string, stdout, stderr io.Writer) (cliOptions, []string, i
 		fmt.Fprintln(stderr, "agrep: --translit cannot be combined with --regex")
 		return opts, nil, 2
 	}
+	if opts.regex && opts.fuzzy.enabled {
+		fmt.Fprintln(stderr, "agrep: --regex and --fuzzy are mutually exclusive")
+		return opts, nil, 2
+	}
 	return opts, fs.Args(), -1
+}
+
+type fuzzyFlag struct {
+	enabled  bool
+	distance int
+}
+
+func (f *fuzzyFlag) String() string {
+	if !f.enabled {
+		return "false"
+	}
+	return strconv.Itoa(f.distance)
+}
+
+func (f *fuzzyFlag) IsBoolFlag() bool { return true }
+
+func (f *fuzzyFlag) Set(value string) error {
+	switch value {
+	case "true":
+		f.enabled = true
+		f.distance = 1
+		return nil
+	case "false":
+		f.enabled = false
+		f.distance = 0
+		return nil
+	}
+	distance, err := strconv.Atoi(value)
+	if err != nil || distance < 0 {
+		return errors.New("fuzzy distance must be a non-negative integer")
+	}
+	f.enabled = true
+	f.distance = distance
+	return nil
 }
 
 type stringList []string

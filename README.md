@@ -74,6 +74,8 @@ agrep -o "مدينه" people.txt
 agrep --encoding=auto "مدينه" legacy.txt
 agrep --translit-out --translit=buckwalter "ktAb" corpus.txt
 agrep --lang=ar,fa "كتاب" mixed-arabic-persian.txt
+agrep --rasm -C 2 "مستشرق" manuscript-ocr.txt
+agrep --fuzzy=1 "كتاب" noisy-ocr.txt
 ```
 
 Recursive searches honor `.gitignore` files by default. Use `--no-ignore` to
@@ -90,6 +92,14 @@ a pattern does not match under the default profile, which folds input `ة` to
 With `--regex`, `-i` follows Go regexp's Unicode simple-fold semantics; literal
 `-i` uses full default case folding and therefore also handles expansions such
 as `ß` to `ss`.
+
+`--rasm` folds Arabic consonants that differ only by i'jam to dotless
+skeletons. `--fuzzy` permits one insertion, deletion, or substitution over
+normalized Unicode codepoints; `--fuzzy=N` selects another non-negative
+Levenshtein threshold. Both modes can produce false positives, especially in
+combination, so longer queries and `--context` are useful for review. See
+[docs/MATCHING.md](docs/MATCHING.md) for the fold table, algorithm, and fuzzy
+span policy.
 
 `-w` checks word boundaries in the original text after mapping normalized
 matches back. `-o` likewise prints the exact original spelling, including
@@ -159,23 +169,23 @@ agrep --profile=camel  "مدرسه" book.txt   # matches CAMeL Tools' normalize_
 | --- | --- |
 | `search` (default) | agrep's original behavior, plus (as of the presentation-form/joiner/bidi/Quranic-mark rules above) fixes for text extracted from PDFs and copied from right-to-left web pages. Digit and punctuation folding stay off. |
 | `strict` | Strips only cosmetic/encoding-level marks (tashkil, tatweel, presentation forms, joiners, bidi marks, Quranic marks); keeps every letter-level distinction (hamza, ta-marbuta, alef-maksura). |
-| `loose` | Every fold this build defines, including digit (`١٢٣`→`123`) and punctuation (`،`→`,`) folding. |
+| `loose` | Every general fold this build defines, including digit (`١٢٣`→`123`), punctuation (`،`→`,`), and rasm folding. |
 | `lucene` | Matches Apache Lucene's `ArabicNormalizer` with `--lang=ar`, verified against its source. |
 | `camel` | Matches the normalization CAMeL Tools users compose from `normalize_alef_ar`/`dediac_ar` and related functions with `--lang=ar`, verified against their source. |
 
-Nine `--keep-*`/`--fold-*` flags apply on top of whichever `--profile` was
-selected: `--keep-hamza`, `--keep-tamarbuta`, `--keep-tashkil`,
+Normalization overrides apply on top of whichever `--profile` was selected:
+`--keep-hamza`, `--keep-tamarbuta`, `--keep-tashkil`,
 `--keep-presentation-forms`, `--keep-joiners`, `--keep-bidi-marks`,
-`--keep-quranic-marks`, `--fold-digits`, `--fold-punctuation`. Run
+`--keep-quranic-marks`, `--fold-digits`, `--fold-punctuation`, and `--rasm`. Run
 `agrep --help` for what each one does. See
 [docs/NORMALIZATION.md](docs/NORMALIZATION.md) for exactly what every rule
 does, codepoint by codepoint, with citations to the Unicode Character
 Database and to the Lucene and CAMeL Tools source each preset is checked
 against.
 
-Language selection composes with profiles. Selecting a non-Arabic language on
-top of `lucene` or `camel` is an explicit agrep extension, not part of the
-upstream compatibility claim.
+Language selection and rasm compose with profiles. Selecting a non-Arabic
+language or adding `--rasm` on top of `lucene` or `camel` is an explicit agrep
+extension, not part of the upstream compatibility claim.
 
 ## Library use
 
@@ -193,6 +203,8 @@ The CLI is a thin wrapper around three importable packages:
   (Matcher, error)` builds a reusable matcher from a query and a profile
   once; `match.NewLiterals` adds repeatable patterns and Unicode case folding.
   `match.NewRegex` evaluates regular expressions over normalized text.
+  `match.NewFuzzy` uses Levenshtein distance over normalized Unicode
+  codepoints with a Myers bit-vector detector.
   `Matcher.FindAll(normalized string) []Span` finds every occurrence in text
   normalized under that same profile.
 - [`scan`](scan): `scan.Search(r io.Reader, m match.Matcher, opts
@@ -251,6 +263,7 @@ go test -run '^$' -fuzz FuzzProfileNormalizeValidUTF8 -fuzztime 30s ./arabic
 go test -run '^$' -fuzz FuzzProfileNormalizeNoPanic -fuzztime 30s ./arabic
 go test -run '^$' -fuzz FuzzLanguageNormalizeProperties -fuzztime 30s ./arabic
 go test -run '^$' -fuzz FuzzNewLiteralNoPanic -fuzztime 30s ./match
+go test -run '^$' -fuzz FuzzMyersEndpointsMatchDP -fuzztime 30s ./match
 go test -run '^$' -fuzz FuzzSearchNoPanic -fuzztime 30s ./scan
 ```
 

@@ -120,6 +120,12 @@ jobs:
       - name: Fuzz regex matcher no panic
         run: go test -run '^$' -fuzz '^FuzzNewRegexNoPanic$' -fuzztime 20s ./match
 
+      - name: Fuzz fuzzy matcher no panic
+        run: go test -run '^$' -fuzz '^FuzzNewFuzzyNoPanic$' -fuzztime 20s ./match
+
+      - name: Fuzz Myers endpoints against dynamic programming oracle
+        run: go test -run '^$' -fuzz '^FuzzMyersEndpointsMatchDP$' -fuzztime 30s ./match
+
       - name: Fuzz search no panic
         run: go test -run '^$' -fuzz '^FuzzSearchNoPanic$' -fuzztime 20s ./scan
 

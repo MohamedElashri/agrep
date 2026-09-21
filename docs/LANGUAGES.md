@@ -76,6 +76,10 @@ normalization. Their documented Arabic characters are transliterated;
 language-specific letters without a mapping pass through unchanged. agrep does
 not invent Latin spellings for Urdu, Pashto, Kurdish, or Uyghur letters.
 
+Phase 9 rasm follows the same boundary: only its documented Arabic consonant
+groups lose i'jam distinctions. The language-specific letters in this document
+remain distinct. See [MATCHING.md](MATCHING.md).
+
 Pashto yeh forms can encode positional and grammatical distinctions, as noted
 in the [Unicode Afghanistan locale requirements](https://www.unicode.org/L2/L2003/03148-af-locales.pdf).
 That is one reason they are tested for distinctness instead of being collapsed.

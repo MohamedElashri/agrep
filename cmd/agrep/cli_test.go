@@ -101,7 +101,7 @@ func (errorReader) Read([]byte) (int, error) { return 0, errors.New("read failed
 // withOverride returns a copy of base with mutate applied, so each test
 // table row below can say precisely which fields it expects to change from
 // the selected preset, instead of writing out a full Profile literal (and
-// risking a transcription mistake in the eight fields it didn't mean to
+// risking a transcription mistake in fields it didn't mean to
 // touch).
 func withOverride(base arabic.Profile, mutate func(*arabic.Profile)) arabic.Profile {
 	p := base
@@ -112,7 +112,7 @@ func withOverride(base arabic.Profile, mutate func(*arabic.Profile)) arabic.Prof
 // TestResolveProfile is the "precedence and conflicts" table test Phase 3
 // calls for: each --keep-*/--fold-* flag only ever clears or sets one field
 // relative to the selected preset, so there is no real conflict between
-// any of them, but this locks in that every one of the nine, individually
+// any of them, but this locks in that every override, individually
 // and combined, behaves exactly as documented rather than leaving it
 // implicit.
 func TestResolveProfile(t *testing.T) {
@@ -145,13 +145,15 @@ func TestResolveProfile(t *testing.T) {
 			withOverride(arabic.ProfileSearch, func(p *arabic.Profile) { p.FoldDigits = true })},
 		{"fold-punctuation alone", "search", profileOverrides{foldPunctuation: true},
 			withOverride(arabic.ProfileSearch, func(p *arabic.Profile) { p.FoldPunctuation = true })},
+		{"rasm alone", "search", profileOverrides{rasm: true},
+			withOverride(arabic.ProfileSearch, func(p *arabic.Profile) { p.Rasm = true })},
 
-		{"all nine overrides together",
+		{"all overrides together",
 			"search",
 			profileOverrides{
 				keepHamza: true, keepTaMarbuta: true, keepTashkil: true,
 				keepPresentationForms: true, keepJoiners: true, keepBidiMarks: true, keepQuranicMarks: true,
-				foldDigits: true, foldPunctuation: true,
+				foldDigits: true, foldPunctuation: true, rasm: true,
 			},
 			// StripTatweel and FoldAlefMaksura have no --keep-* flag, so
 			// they must survive from the preset untouched: asserting the
@@ -167,6 +169,7 @@ func TestResolveProfile(t *testing.T) {
 				p.StripQuranic = false
 				p.FoldDigits = true
 				p.FoldPunctuation = true
+				p.Rasm = true
 			})},
 
 		{"strict preset already has hamza/ta-marbuta off; keep-* is a no-op on top",
@@ -417,6 +420,75 @@ func TestRunRegexUsesNormalizedText(t *testing.T) {
 				t.Fatalf("code=%d want=%d stdout=%q stderr=%q", code, tt.want, stdout.String(), stderr.String())
 			}
 		})
+	}
+}
+
+func TestRunRasmMatching(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		in   string
+		want int
+	}{
+		{"default keeps dots", []string{"بنت"}, "ثني\n", 1},
+		{"rasm folds ijam", []string{"--rasm", "بنت"}, "ثني\n", 0},
+		{"loose includes rasm", []string{"--profile=loose", "بنت"}, "ثني\n", 0},
+		{"Urdu retroflex remains distinct", []string{"--rasm", "--profile=strict", "--lang=ur", "ت"}, "ٹ\n", 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr strings.Builder
+			code := run(tt.args, strings.NewReader(tt.in), &stdout, &stderr)
+			if code != tt.want || stderr.Len() != 0 {
+				t.Fatalf("code=%d stdout=%q stderr=%q; want %d", code, stdout.String(), stderr.String(), tt.want)
+			}
+		})
+	}
+}
+
+func TestRunFuzzyMatchingAndMappedSpan(t *testing.T) {
+	var stdout, stderr strings.Builder
+	code := run([]string{"--fuzzy", "--json", "كتاب"}, strings.NewReader("هذا كتااب جيد\n"), &stdout, &stderr)
+	want := "{\"line\":1,\"text\":\"هذا كتااب جيد\",\"spans\":[[7,17]]}\n"
+	if code != 0 || stdout.String() != want || stderr.Len() != 0 {
+		t.Fatalf("code=%d stdout=%q want=%q stderr=%q", code, stdout.String(), want, stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	code = run([]string{"--fuzzy", "--json", "كتاب"}, strings.NewReader("هذا كُتب جيد\n"), &stdout, &stderr)
+	want = "{\"line\":1,\"text\":\"هذا كُتب جيد\",\"spans\":[[7,15]]}\n"
+	if code != 0 || stdout.String() != want || stderr.Len() != 0 {
+		t.Fatalf("deletion span: code=%d stdout=%q want=%q stderr=%q", code, stdout.String(), want, stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	code = run([]string{"--fuzzy=0", "كتاب"}, strings.NewReader("كتلب\n"), &stdout, &stderr)
+	if code != 1 || stdout.Len() != 0 || stderr.Len() != 0 {
+		t.Fatalf("distance zero: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+}
+
+func TestRunFuzzySpanComposesWithTransliterationOutput(t *testing.T) {
+	var stdout, stderr strings.Builder
+	code := run([]string{"--fuzzy", "--translit=buckwalter", "--translit-out", "--json", "ktAb"}, strings.NewReader("كتااب\n"), &stdout, &stderr)
+	want := "{\"line\":1,\"text\":\"ktAAb\",\"spans\":[[0,5]]}\n"
+	if code != 0 || stdout.String() != want || stderr.Len() != 0 {
+		t.Fatalf("code=%d stdout=%q want=%q stderr=%q", code, stdout.String(), want, stderr.String())
+	}
+}
+
+func TestRunRejectsInvalidFuzzyOptions(t *testing.T) {
+	for _, args := range [][]string{
+		{"--fuzzy=-1", "x"},
+		{"--fuzzy=bad", "x"},
+		{"--fuzzy", "--regex", "x"},
+	} {
+		var stdout, stderr strings.Builder
+		if code := run(args, strings.NewReader("x\n"), &stdout, &stderr); code != 2 || stderr.Len() == 0 {
+			t.Fatalf("args=%v code=%d stderr=%q", args, code, stderr.String())
+		}
 	}
 }
 

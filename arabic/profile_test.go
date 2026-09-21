@@ -89,28 +89,22 @@ func TestProfileStrict(t *testing.T) {
 	}
 }
 
-// TestProfileLoose currently duplicates TestNormalize's table because
-// ProfileLoose is defined identically to ProfileSearch (see the Profile
-// doc). Phase 4 (digit/punctuation folding) and Phase 5/7/9 (Rasm,
-// language folding) will make these diverge; update only this table then.
+// TestProfileLoose includes rasm in addition to the ordinary search folds.
 func TestProfileLoose(t *testing.T) {
 	tests := []struct {
 		name, input, want string
 	}{
-		{"voweled", "اَلْعَرَبِيَّةُ", "العربيه"},
-		{"tatweel", "العــربية", "العربيه"},
+		{"voweled", "اَلْعَرَبِيَّةُ", "العرٮٮه"},
+		{"tatweel", "العــربية", "العرٮٮه"},
 		{"alef variants", "آأإٱ", "اااا"},
-		{"seated hamza", "مسؤول فئة", "مسوول فيه"},
-		{"alef maksura", "على", "علي"},
+		{"seated hamza", "مسؤول فئة", "مسوول ٯٮه"},
+		{"alef maksura", "على", "علٮ"},
 		{"empty", "", ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := ProfileLoose.Normalize(tt.input); got != tt.want {
 				t.Fatalf("ProfileLoose.Normalize(%q) = %q; want %q", tt.input, got, tt.want)
-			}
-			if got := ProfileLoose.Normalize(tt.input); got != ProfileSearch.Normalize(tt.input) {
-				t.Fatalf("ProfileLoose diverged from ProfileSearch on %q: %q vs %q", tt.input, got, ProfileSearch.Normalize(tt.input))
 			}
 		})
 	}
@@ -187,9 +181,9 @@ func TestProfileCAMeL(t *testing.T) {
 }
 
 // profileBit indexes a Profile bool field for profileFromBits/bitsFromProfile.
-// Adding another boolean field in a later phase (Rasm, for example) means
-// adding one more constant here and one more line in each of those two
-// functions. Multi-valued dimensions such as Languages get a separate fuzz
+// Adding another boolean field in a later phase means adding one more constant
+// here and one more line in each of those two functions. Multi-valued
+// dimensions such as Languages get a separate fuzz
 // input, as FuzzLanguageNormalizeProperties demonstrates. An explicit,
 // growing positional-bool parameter list on every fuzz function does not
 // scale the same way.
@@ -209,6 +203,7 @@ const (
 	bitFoldDigits
 	bitFoldPunctuation
 	bitStripQuranic
+	bitRasm
 )
 
 func profileFromBits(bits uint16, scope int) Profile {
@@ -228,13 +223,14 @@ func profileFromBits(bits uint16, scope int) Profile {
 		FoldDigits:       has(bitFoldDigits),
 		FoldPunctuation:  has(bitFoldPunctuation),
 		StripQuranic:     has(bitStripQuranic),
+		Rasm:             has(bitRasm),
 	}
 }
 
 const allProfileBits uint16 = 1<<bitStripTashkil | 1<<bitStripTatweel | 1<<bitFoldAlefHamza |
 	1<<bitFoldAlefWasla | 1<<bitFoldHamzaSeat | 1<<bitFoldTaMarbuta | 1<<bitFoldAlefMaksura |
 	1<<bitFoldPresentation | 1<<bitStripJoiners | 1<<bitStripBidi | 1<<bitFoldDigits |
-	1<<bitFoldPunctuation | 1<<bitStripQuranic
+	1<<bitFoldPunctuation | 1<<bitStripQuranic | 1<<bitRasm
 
 func addProfileFuzzSeeds(f *testing.F) {
 	seeds := []string{

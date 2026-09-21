@@ -103,6 +103,9 @@ type Profile struct {
 	// Languages selects language-aware Arabic-script equivalences. Presets
 	// default to Arabic only, preserving all pre-Phase-8 behavior.
 	Languages LanguageSet
+	// Rasm folds Arabic consonants that differ only by i'jam to a shared
+	// dotless skeleton. It does not fold language-specific letters.
+	Rasm bool
 
 	// StripTashkil removes combining marks selected by TashkilScope. It
 	// never removes the hamza/madda marks covered by FoldAlefHamza or
@@ -225,14 +228,13 @@ var (
 		StripQuranic:     true,
 	}
 
-	// ProfileLoose enables every fold this build defines. As of Phase 4,
-	// that means digit and punctuation folding (the two rules still
-	// marked "Opt-in" in plan.md's Phase 4 rule table) are what actually
-	// make it diverge from ProfileSearch; everything else the two share.
-	// A caller can independently select language-aware equivalences through
-	// Languages. A future rasm mode may add further divergence.
+	// ProfileLoose enables every general fold this build defines, including
+	// digit and punctuation folding and the deliberately high-recall rasm
+	// skeleton. A caller independently selects language-aware equivalences
+	// through Languages.
 	ProfileLoose = Profile{
 		Languages:        LanguageArabic,
+		Rasm:             true,
 		StripTashkil:     true,
 		TashkilScope:     TashkilAllMn,
 		StripTatweel:     true,
@@ -342,7 +344,7 @@ func (p Profile) Normalize(s string) string {
 			case lastBase == 'ا':
 				drop = p.FoldAlefHamza
 			case r == 'ٔ' && (lastBase == 'و' || lastBase == 'ي'):
-				drop = p.FoldHamzaSeat
+				drop = p.FoldHamzaSeat || (p.Rasm && lastBase == 'ي')
 			default:
 				drop = p.StripTashkil && tashkilScopeMatches(p.TashkilScope, r)
 			}
@@ -406,10 +408,15 @@ func (p Profile) Normalize(s string) string {
 			drop = p.StripTashkil && tashkilScopeMatches(p.TashkilScope, r)
 		}
 
+		canonicalOut := out
+		if !drop && p.Rasm {
+			out = foldRasm(out)
+		}
+
 		var nextBase rune
 		switch {
-		case !drop && (out == 'ا' || out == 'و' || out == 'ي'):
-			nextBase = out
+		case !drop && (canonicalOut == 'ا' || canonicalOut == 'و' || canonicalOut == 'ي'):
+			nextBase = canonicalOut
 		case drop || unicode.Is(unicode.Mn, r):
 			nextBase = lastBase
 		}
@@ -464,7 +471,7 @@ func (p Profile) transformRune(r, lastBase rune) (out rune, drop bool, nextBase 
 		case lastBase == 'ا':
 			drop = p.FoldAlefHamza
 		case r == 'ٔ' && (lastBase == 'و' || lastBase == 'ي'):
-			drop = p.FoldHamzaSeat
+			drop = p.FoldHamzaSeat || (p.Rasm && lastBase == 'ي')
 		default:
 			drop = p.StripTashkil && tashkilScopeMatches(p.TashkilScope, r)
 		}
@@ -528,9 +535,14 @@ func (p Profile) transformRune(r, lastBase rune) (out rune, drop bool, nextBase 
 		drop = p.StripTashkil && tashkilScopeMatches(p.TashkilScope, r)
 	}
 
+	canonicalOut := out
+	if !drop && p.Rasm {
+		out = foldRasm(out)
+	}
+
 	switch {
-	case !drop && (out == 'ا' || out == 'و' || out == 'ي'):
-		nextBase = out
+	case !drop && (canonicalOut == 'ا' || canonicalOut == 'و' || canonicalOut == 'ي'):
+		nextBase = canonicalOut
 	case drop || unicode.Is(unicode.Mn, r):
 		nextBase = lastBase
 	}
