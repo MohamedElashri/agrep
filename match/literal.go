@@ -290,12 +290,16 @@ func (m *literalMatcher) FindAll(normalized string) []Span {
 			start = e // keys are never empty, so this always advances.
 		}
 	}
-	sort.Slice(spans, func(i, j int) bool {
-		if spans[i].Start == spans[j].Start {
-			return spans[i].End < spans[j].End
-		}
-		return spans[i].Start < spans[j].Start
-	})
+	// A single key is found from left to right, including after case-fold
+	// offset mapping. Only multiple keys need a final ordering pass.
+	if len(m.keys) > 1 && len(spans) > 1 {
+		sort.Slice(spans, func(i, j int) bool {
+			if spans[i].Start == spans[j].Start {
+				return spans[i].End < spans[j].End
+			}
+			return spans[i].Start < spans[j].Start
+		})
+	}
 	return spans
 }
 

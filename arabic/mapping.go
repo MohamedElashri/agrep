@@ -103,7 +103,10 @@ type mappedRune struct {
 }
 
 func mappedDecomposeInto(s string, foldPresentation bool, languages LanguageSet, tokens []mappedRune) []mappedRune {
-	if count := utf8.RuneCountInString(s); cap(tokens) < count {
+	// Count only for an empty buffer. Reused tokens can grow with append, so
+	// counting every line would scan its UTF-8 twice.
+	if cap(tokens) == 0 {
+		count := utf8.RuneCountInString(s)
 		tokens = make([]mappedRune, 0, count)
 	}
 	for offset := 0; offset < len(s); {

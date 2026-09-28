@@ -71,9 +71,14 @@ type failingWriter struct{}
 func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("broken output") }
 
 func TestRunWriteFailure(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "input.txt")
+	writeTestFile(t, path, "x\n")
 	var stderr strings.Builder
-	if code := run([]string{"x"}, strings.NewReader("x\n"), failingWriter{}, &stderr); code != 2 {
+	if code := run([]string{"x", path}, strings.NewReader(""), failingWriter{}, &stderr); code != 2 {
 		t.Fatalf("exit code = %d; want 2", code)
+	}
+	if !strings.Contains(stderr.String(), "broken output") {
+		t.Fatalf("stderr = %q; want buffered write failure", stderr.String())
 	}
 }
 
@@ -94,9 +99,60 @@ func TestRunReadFailure(t *testing.T) {
 	}
 }
 
+func TestRunFlushesBufferedOutputBeforeInputError(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "input.txt")
+	writeTestFile(t, path, "hit\n"+string([]byte{0xff})+"\n")
+	var stdout, stderr strings.Builder
+	if code := run([]string{"hit", path}, strings.NewReader(""), &stdout, &stderr); code != 2 {
+		t.Fatalf("exit code = %d; want 2", code)
+	}
+	if stdout.String() != "hit\n" || !strings.Contains(stderr.String(), "not valid UTF-8") {
+		t.Fatalf("stdout=%q stderr=%q; want emitted line and input error", stdout.String(), stderr.String())
+	}
+}
+
 type errorReader struct{}
 
 func (errorReader) Read([]byte) (int, error) { return 0, errors.New("read failed") }
+
+type outputAwareReader struct {
+	written *bool
+	sent    bool
+}
+
+func (r *outputAwareReader) Read(p []byte) (int, error) {
+	if !r.sent {
+		r.sent = true
+		return copy(p, "hit\n"), nil
+	}
+	if !*r.written {
+		return 0, errors.New("stdin output was delayed")
+	}
+	return 0, io.EOF
+}
+
+type outputAwareWriter struct {
+	written *bool
+	text    strings.Builder
+}
+
+func (w *outputAwareWriter) Write(p []byte) (int, error) {
+	*w.written = true
+	return w.text.Write(p)
+}
+
+func TestRunStreamsStdinOutputBeforeNextRead(t *testing.T) {
+	written := false
+	input := &outputAwareReader{written: &written}
+	output := &outputAwareWriter{written: &written}
+	var stderr strings.Builder
+	if code := run([]string{"hit"}, input, output, &stderr); code != 0 {
+		t.Fatalf("code=%d stderr=%q; want successful streaming search", code, stderr.String())
+	}
+	if output.text.String() != "hit\n" {
+		t.Fatalf("output = %q, want hit line", output.text.String())
+	}
+}
 
 // withOverride returns a copy of base with mutate applied, so each test
 // table row below can say precisely which fields it expects to change from
