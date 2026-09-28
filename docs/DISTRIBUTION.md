@@ -3,9 +3,8 @@
 The repository has a tag-triggered GoReleaser workflow and a CI snapshot build.
 Archives cover Linux, macOS, FreeBSD, OpenBSD, and NetBSD on amd64 and arm64,
 plus DragonFly BSD on amd64. Each archive contains the binary, README, and
-license; `checksums.txt` contains SHA-256 hashes. No release tag exists yet.
-`v1.0.0` remains reserved until the public Go API has had use and review; a
-first published version should be a `v0.x.y` tag.
+license; `checksums.txt` contains SHA-256 hashes. Use a `v0.x.y` tag while
+the public Go API is still under review.
 
 For each release:
 
