@@ -1,0 +1,4 @@
+go test fuzz v1
+string("ؒـْ")
+uint16(62)
+int(-154)

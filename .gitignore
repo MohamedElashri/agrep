@@ -1,2 +1,6 @@
 /dist/
+/web/dist/
+__pycache__/
+*.py[cod]
 plan*
+/agrep

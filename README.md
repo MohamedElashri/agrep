@@ -1,97 +1,80 @@
 # agrep
 
-`agrep` (Arabic Grep) searches UTF-8 text while tolerating Arabic tashkil,
-tatweel, canonical Unicode differences, and common orthographic variants. It is
-small enough for shell use and has a stable JSON Lines mode for tool-calling
-agents.
+[![CI](https://github.com/MohamedElashri/agrep/actions/workflows/ci.yml/badge.svg)](https://github.com/MohamedElashri/agrep/actions/workflows/ci.yml)
+
+`agrep` searches Arabic-script text across spelling and Unicode variants. It can
+ignore diacritics, fold common letter forms, search transliterated queries, and
+return original-text spans as JSON Lines.
 
 ## Install
 
-Download the archive for your operating system and architecture from the
-[GitHub Releases](https://github.com/MohamedElashri/agrep/releases) page, extract
-it, and place `agrep` somewhere on your `PATH`.
+Download the archive for your operating system from
+[GitHub Releases](https://github.com/MohamedElashri/agrep/releases), verify its
+SHA-256 hash against `checksums.txt`, extract it, and put `agrep` on your `PATH`.
+Check the installation with `agrep --version`.
 
-From a checkout:
-
-```sh
-go install .
-go build -trimpath -ldflags "-s -w -X main.version=$(git describe --tags --always --dirty)" -o agrep .
-```
-
-## Usage
-
-```text
-agrep [options] <query> [file]
-```
-
-Human-readable output is the default:
+With Go installed, you can also install the latest published version:
 
 ```sh
-agrep -n "مدرسه" book.txt
-printf '%s\n' "هذه مَدْرَسَة" | agrep "مدرسة"
+go install github.com/MohamedElashri/agrep/cmd/agrep@latest
 ```
 
-For agents and scripts, use JSON Lines and check the exit status:
+The standard binary searches text files. HTML and EPUB extraction requires a
+[source build with `-tags formats`](docs/INPUT.md#optional-html-and-epub-extraction).
+
+## Start searching
 
 ```sh
-agrep --json "احمد" people.txt
+agrep 'مدرسه' book.txt                         # also finds مَدْرَسَة
+agrep -r -n --include '*.txt' 'كتاب' books/    # recursive search
+agrep --translit=buckwalter 'ktAb' corpus.txt  # Latin keyboard → كتاب
+agrep --json 'احمد' people.txt                 # JSON Lines with byte spans
 ```
 
-```json
-{"line":12,"text":"أحمد وصل مبكرا"}
+With no path, `agrep` reads standard input. Use `-` as a path to mix standard
+input with files. Exit status is `0` for a selection, `1` for none, and `2` for
+an error.
+
+## Choose a search mode
+
+| Need | Option | Detail |
+| --- | --- | --- |
+| Exact spelling distinctions | `--profile=strict` | Keeps hamza, ta-marbuta, and alef-maksura distinct. |
+| More recall | `--profile=loose` or `--rasm` | Can produce extra matches. |
+| Misspellings or OCR errors | `--fuzzy[=N]` | Edit distance over normalized Unicode codepoints. |
+| Regular expressions | `--regex` | Pattern syntax is evaluated over normalized text. |
+| Persian, Urdu, and other orthographies | `--lang=fa`, `--lang=ar,fa`, etc. | Selects language-specific equivalences. |
+| Legacy files | `--encoding=auto` or an explicit encoding | Decodes before searching. |
+
+The matching line is displayed with its original spelling. JSON `spans` and
+`-o` refer to decoded UTF-8 byte offsets in that original line.
+
+## Reference
+
+- [All CLI options and output formats](docs/CLI.md)
+- [Normalization rules and profiles](docs/NORMALIZATION.md)
+- [Languages](docs/LANGUAGES.md), [rasm and fuzzy matching](docs/MATCHING.md),
+  [encodings and transliteration](docs/INPUT.md)
+- [Terminal color](docs/TERMINALS.md) and [normalization playground](docs/PLAYGROUND.md)
+- [Benchmarks](docs/BENCHMARKS.md) and [development](docs/DEVELOPMENT.md)
+
+## Go packages
+
+`arabic` normalizes text, `match` builds reusable literal, regex, or fuzzy
+matchers, and `scan` streams matching lines. The CLI uses the same packages.
+
+```go
+import "github.com/MohamedElashri/agrep/arabic"
+
+same := arabic.Normalize("مَدْرَسَةٌ") == arabic.Normalize("مدرسه") // true
+_ = same
 ```
 
-Exit status is `0` for one or more matches, `1` for no matches, and `2` for an
-argument, input, or output error. Streaming output can be partial after an
-output failure, so consumers must honor the final exit status.
+See the package documentation for
+[`arabic`](https://pkg.go.dev/github.com/MohamedElashri/agrep/arabic),
+[`match`](https://pkg.go.dev/github.com/MohamedElashri/agrep/match), and
+[`scan`](https://pkg.go.dev/github.com/MohamedElashri/agrep/scan).
 
-## Normalization
+## License
 
-Both query and input lines are normalized with Unicode NFD, then:
-
-- all Unicode non-spacing marks (`Mn`) and Arabic tatweel are removed;
-- `أ`, `إ`, `آ`, and `ٱ` become `ا`;
-- `ؤ` becomes `و`, and `ئ` becomes `ي`;
-- `ة` becomes `ه`;
-- `ى` becomes `ي`.
-
-The original, unnormalized matching line is emitted. Matching is literal,
-case-sensitive, and substring-based after normalization. Because normalization
-is intentionally lossy, it can produce false positives where distinct Arabic
-spellings collapse to the same comparison key.
-
-Input and query must be valid UTF-8. Logical lines have no built-in size ceiling;
-use `--max-line-bytes N` when processing untrusted input. A query that becomes
-empty after normalization is rejected.
-
-## Development
-
-```sh
-go test ./...
-go test -race ./...
-go vet ./...
-```
-
-## Releases
-
-Releases are built and published by GitHub Actions from semantic version tags.
-Each release contains `tar.gz` archives for Linux, macOS, FreeBSD, OpenBSD, and
-NetBSD on amd64 and arm64, plus DragonFly BSD on amd64. The archives include the
-binary, README, and license; `checksums.txt` contains their SHA-256 checksums.
-
-To publish a release, first make sure the target commit is on the default branch
-and its CI checks pass. Then create and push an annotated tag:
-
-```sh
-git tag -a v1.2.3 -m "agrep v1.2.3"
-git push origin v1.2.3
-```
-
-Tags must follow SemVer, such as `v1.2.3` or `v1.2.3-rc.1`. A prerelease tag
-creates a GitHub prerelease. GoReleaser generates release notes from commits
-since the previous tag and embeds the version without the leading `v` in the
-binary; verify it with `agrep --version`.
-
-## LICENSE
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+MIT. See [LICENSE](LICENSE).
