@@ -429,12 +429,13 @@ func searchOne(input inputSpec, stdin io.Reader, output io.Writer, matcher match
 
 	contextLines := !opts.countOnly && !opts.filesWithMatches && !opts.filesWithoutMatch
 	searchOpts := scan.Options{
-		MaxLineBytes: opts.maxLineBytes,
-		File:         input.label,
-		InvertMatch:  opts.invertMatch,
-		WordRegexp:   opts.wordRegexp,
-		MapSpans:     contextLines && (opts.jsonOutput || opts.onlyMatching || highlight),
-		OmitText:     !contextLines,
+		MaxLineBytes:  opts.maxLineBytes,
+		File:          input.label,
+		InvertMatch:   opts.invertMatch,
+		WordRegexp:    opts.wordRegexp,
+		MapSpans:      contextLines && (opts.jsonOutput || opts.onlyMatching || highlight),
+		OmitText:      !contextLines,
+		ExistenceOnly: opts.filesWithMatches || opts.filesWithoutMatch,
 	}
 	if contextLines {
 		searchOpts.BeforeContext = opts.beforeContext

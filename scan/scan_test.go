@@ -203,6 +203,38 @@ func TestSearchOmitText(t *testing.T) {
 	}
 }
 
+func TestSearchExistenceOnlyValidatesTail(t *testing.T) {
+	m := mustLiteral(t, "غ")
+	var got []Match
+	found, err := Search(strings.NewReader("غ\nسطر آخر\nغ\n"), m,
+		Options{OmitText: true, ExistenceOnly: true}, func(mt Match) error {
+			got = append(got, mt)
+			return nil
+		})
+	if err != nil || !found || len(got) != 1 || got[0].Line != 1 {
+		t.Fatalf("existence scan: found=%v, matches=%+v, err=%v", found, got, err)
+	}
+	for _, tt := range []struct {
+		name  string
+		input string
+		opts  Options
+	}{
+		{"invalid UTF-8", "غ\n" + string([]byte{0xff}) + "\n", Options{ExistenceOnly: true}},
+		{"line limit", "غ\nabcdef\n", Options{ExistenceOnly: true, MaxLineBytes: 5}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if found, err := Search(strings.NewReader(tt.input), m, tt.opts,
+				func(Match) error { return nil }); err == nil || found {
+				t.Fatalf("tail error lost: found=%v, err=%v", found, err)
+			}
+		})
+	}
+	if _, err := Search(strings.NewReader("غ\n"), m,
+		Options{ExistenceOnly: true, AfterContext: 1}, func(Match) error { return nil }); err == nil {
+		t.Fatal("ExistenceOnly accepted context")
+	}
+}
+
 func TestSearchMapsSpansToOriginalText(t *testing.T) {
 	m := mustLiteral(t, "مد")
 	input := "مُدُ next\n"

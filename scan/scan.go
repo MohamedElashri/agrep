@@ -55,6 +55,10 @@ type Options struct {
 	// OmitText leaves Match.Text empty for summary callers that need only
 	// selection. It cannot be combined with context or MapSpans.
 	OmitText bool
+	// ExistenceOnly emits at most the first selected line. It still reads and
+	// validates the rest of the input so later errors remain observable.
+	// It cannot be combined with context.
+	ExistenceOnly bool
 }
 
 var mappedIndexPool sync.Pool
@@ -63,14 +67,17 @@ const maxPooledIndexCapacity = 4 << 20 // 16 MiB of int32 storage
 
 // Search reads arbitrary-length logical lines from r without
 // bufio.Scanner's token ceiling, and reports every line whose normalized text
-// m selects, optionally inverted, plus requested context. Unless OmitText is
-// set, it preserves the original, unnormalized text of every emitted line.
+// m selects, optionally inverted, plus requested context. ExistenceOnly
+// emits the first selected line; OmitText omits original text from emissions.
 func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) error) (bool, error) {
 	if opts.BeforeContext < 0 || opts.AfterContext < 0 {
 		return false, errors.New("scan: context values must be non-negative")
 	}
 	if opts.OmitText && (opts.BeforeContext > 0 || opts.AfterContext > 0 || opts.MapSpans) {
 		return false, errors.New("scan: OmitText cannot be combined with context or MapSpans")
+	}
+	if opts.ExistenceOnly && (opts.BeforeContext > 0 || opts.AfterContext > 0) {
+		return false, errors.New("scan: ExistenceOnly cannot be combined with context")
 	}
 	reader := bufio.NewReader(r)
 	profile := m.Profile()
@@ -108,6 +115,9 @@ func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) erro
 		lineNumber++
 		if !utf8.Valid(line) {
 			return false, fmt.Errorf("%w on line %d", ErrInvalidUTF8, lineNumber)
+		}
+		if opts.ExistenceOnly && found {
+			continue
 		}
 
 		matched := false

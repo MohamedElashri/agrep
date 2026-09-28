@@ -376,6 +376,30 @@ func TestRunFileSelectionModesAndFilenameOverrides(t *testing.T) {
 	}
 }
 
+func TestRunFilenameModesReportErrorsAfterMatch(t *testing.T) {
+	root := t.TempDir()
+	invalid := filepath.Join(root, "invalid.txt")
+	writeTestFile(t, invalid, "hit\n"+string([]byte{0xff})+"\n")
+	long := filepath.Join(root, "long.txt")
+	writeTestFile(t, long, "hit\nabcdef\n")
+	for _, flag := range []string{"-l", "-L"} {
+		for _, tt := range []struct {
+			name string
+			args []string
+		}{
+			{"invalid UTF-8", []string{flag, "hit", invalid}},
+			{"line limit", []string{flag, "--max-line-bytes=5", "hit", long}},
+		} {
+			t.Run(flag+"/"+tt.name, func(t *testing.T) {
+				var stdout, stderr strings.Builder
+				if code := run(tt.args, strings.NewReader(""), &stdout, &stderr); code != 2 || stdout.Len() != 0 || stderr.Len() == 0 {
+					t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+				}
+			})
+		}
+	}
+}
+
 func TestRunJSONFileField(t *testing.T) {
 	name := filepath.Join(t.TempDir(), "input.txt")
 	writeTestFile(t, name, "needle\n")
