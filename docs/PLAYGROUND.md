@@ -1,7 +1,8 @@
 # Normalization playground
 
 The browser playground uses the same Go normalization code as the CLI. Enter
-text, choose a profile and language, and inspect the comparison key. A rule
+text, choose a profile and language, and inspect or copy the comparison key.
+Use an example to load its text and settings, or Clear to start over. A rule
 chip is highlighted when disabling that rule alone changes the key; it is not
 a full transformation trace. Input stays in the browser and is limited to
 32 KiB per example.

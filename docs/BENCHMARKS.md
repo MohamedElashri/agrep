@@ -1,71 +1,84 @@
-# Benchmarks
+# Performance benchmarks
 
-The [benchmark script](../scripts/benchmark.py) builds `agrep` and creates
-temporary fixtures from the checked-in [MSA](../testdata/corpus/msa.txt),
-[voweled](../testdata/corpus/quran.txt), and [OCR](../testdata/corpus/ocr.txt)
-samples. It checks selected-line counts or output records before timing.
-Generated fixtures and binaries are removed afterward.
+> **Reading the results:** Lower time is better. Each time is the median of five
+> full CLI runs, in milliseconds. The `agrep / grep` and `agrep / rg` columns
+> divide agrep's time by the other tool's time; `3.0×` means agrep took three
+> times as long on that workload.
 
-## Workloads
+These measurements show both the cost of agrep's default search behavior and
+what its Arabic-script features add. Comparisons with GNU grep and ripgrep are
+shown only when the tools return the same matching lines or files on the
+fixture. They do not imply identical search semantics on arbitrary input.
 
-| Workload | Measured operation | Comparison |
-| --- | --- | --- |
-| Exact count | `-c` on lines containing `مكتبة` | Same selected lines for all three tools. |
-| Literal miss | `-c` with no matching lines | Same result; measures the full scan. |
-| Line output | Numbered matching lines sent to a null sink | Same selected lines, different output formats. |
-| Long lines | `-c` on 64 KiB logical lines | Same selected lines. |
-| Recursive files | `-r -l` on a 32-file tree | Same matching file set. |
-| Hamza fold | `-c اعلنت` on `أعلنت` | agrep selects lines; raw grep/ripgrep select none. |
-| Voweled text | `-c قال` on `قَالَ` | agrep selects lines; raw grep/ripgrep select none. |
-| JSON spans | `--json مكتبه` with mapped original-text spans | agrep-only output format. |
-| Fuzzy | `--fuzzy=1 -c كتاب` on OCR lines | agrep-only edit-distance mode. |
-| Legacy decode | `--encoding=cp1256 -c مكتبه` | agrep-only decode and normalize pipeline. |
+## Same-result workloads
 
-`grep` and `ripgrep` timings appear only where the tools select the same lines
-or files. Their raw counts for normalization workloads are recorded in JSON as
-a correctness contrast, not a speed comparison.
+| Workload | Matching result | agrep | GNU grep | ripgrep | agrep / grep | agrep / rg |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Exact literal count | 270,601 lines | **76.4** | 2.5 | 25.2 | 30.1× | 3.0× |
+| Literal miss | 0 lines | **1,940.8** | 10.7 | 7.3 | 180.8× | 265.3× |
+| Numbered line output | 270,601 lines | **534.7** | 3.4 | 61.7 | 158.1× | 8.7× |
+| Long lines (about 64 KiB each) | 257 lines | **57.3** | 3.1 | 6.7 | 18.4× | 8.6× |
+| Recursive matching files | 32 files | **23.1** | 3.4 | 7.3 | 6.8× | 3.2× |
 
-## Method
+`-c` counts selected lines, not occurrences. Numbered line output goes to a null
+sink; the tools select the same lines but format their output differently.
+Recursive mode checks the matching file set. The literal miss is a full scan
+with no matching line, and is the largest relative gap in this run.
+The shared hit query is `مكتبة`; the miss query is `غيرموجود`. GNU grep and
+ripgrep use fixed-string (`-F`) searches.
+
+## When normalization changes the answer
+
+Here, raw literal grep and ripgrep miss matches that agrep finds. Their times
+would describe a different result, so the table shows **match counts**, not a
+cross-tool speed ratio.
+
+| Input and query | agrep matches | Raw grep | Raw rg | agrep time |
+| :--- | ---: | ---: | ---: | ---: |
+| `أعلنت` searched with `اعلنت` (alef-hamza fold) | 270,601 | 0 | 0 | 1,705.4 ms |
+| `قَالَ` searched with `قال` (vowel removal) | 390,168 | 0 | 0 | 901.3 ms |
+
+## Additional agrep workloads
+
+| Operation | What it measures | Result | Median | Throughput |
+| :--- | :--- | ---: | ---: | ---: |
+| Mapped JSON spans | Normalize, map spans to original text, emit JSON | 270,601 records | 2,403.8 ms | 6.7 MiB/s |
+| One-edit fuzzy count | Search OCR text with `--fuzzy=1` | 1,677,722 lines | 1,000.3 ms | 16.0 MiB/s |
+| CP1256 decode and count | Decode legacy text, normalize, count | 493,448 lines | 167.9 ms | 95.3 MiB/s |
+
+Throughput is input MiB divided by median elapsed time. It includes process
+startup and output generation, and is not a pure matcher throughput figure.
+
+## Measurement setup
+
+| Item | Value |
+| :--- | :--- |
+| Source revision | `83b5e2c` |
+| Host | AMD Ryzen 7 7735H, Linux x86-64 |
+| Toolchain | Go 1.27.1, GNU grep 3.11, ripgrep 15.2.0 |
+| Locale | `LC_ALL=C.UTF-8` |
+| Input | About 16 MiB per fixture; recursive case uses 32 files totaling about 16 MiB |
+| Timing | One warm-up per command, five timed runs, rotated command order, median wall time |
+
+The [benchmark script](../scripts/benchmark.py) repeats the checked-in
+[MSA](../testdata/corpus/msa.txt), [voweled](../testdata/corpus/quran.txt), and
+[OCR](../testdata/corpus/ocr.txt) samples into temporary fixtures. It verifies
+matching-line counts, output record counts, or matching file sets before
+measuring. Output is discarded during timing. The script records individual
+runs, commands, versions, input sizes, and hashes in JSON, then removes its
+temporary files.
+
+These are warm-cache, synthetic fixtures. Repeated text, machine load, storage,
+and query mix can change the numbers. In particular, small grep runs are
+sensitive to process startup noise. Treat the table as a measured profile of
+these workloads, not a general speed ranking.
+
+## Reproduce or compare a change
 
 ```sh
 python3 scripts/benchmark.py --size-mib 16 --runs 5 --output results.json
 ```
 
-`--agrep /path/to/binary` uses an existing build. The script writes fixtures
-near the requested size, warms each command once, rotates command order, and
-reports individual runs, median, minimum, maximum, and MiB/s. It records
-versions, CPU, fixture source hashes, the agrep binary hash, input size, and
-commands. Timing includes process startup and output generation; output goes
-to a null sink. Fixtures are synthetic repetitions with a warm filesystem
-cache. These numbers do not predict cold I/O, diverse documents, or every
-query mix. Small grep timings are especially sensitive to startup noise.
-
-For a change comparison, run the **same script, fixture size, and run count**
-for the base and candidate binaries on the same machine. Keep both JSON files.
-
-## Example local run
-
-Linux 7.0, AMD Ryzen 7 7735HS, Go 1.27.1, GNU grep 3.11, ripgrep 15.2.0;
-8 MiB per fixture, three timed runs, 2026-09-28. Times below are medians in
-seconds. Short runs are illustrative, not a regression threshold.
-
-| Same-result workload | agrep | grep | ripgrep |
-| --- | ---: | ---: | ---: |
-| Exact count | 0.0365 | 0.0026 | 0.0144 |
-| Literal miss | 1.031 | 0.0076 | 0.0060 |
-| Numbered line output | 0.243 | 0.0028 | 0.0291 |
-| 64 KiB lines | 0.0351 | 0.0026 | 0.0054 |
-| Recursive matching files | 0.0163 | 0.0036 | 0.0075 |
-
-| agrep-specific workload | Median seconds | Selected lines |
-| --- | ---: | ---: |
-| Alef-hamza fold | 0.995 | 135,301 |
-| Voweled text | 0.531 | 195,084 |
-| Mapped JSON spans | 1.480 | 135,301 |
-| One-edit fuzzy count | 0.553 | 838,862 |
-| CP1256 decode and count | 0.113 | 246,724 |
-
-The exact-hit shortcut helps when a raw occurrence proves a normalized literal
-match. Misses, voweled input, and mapped output still require substantially
-more work. The benchmark suite keeps those costs visible rather than collapsing
-them into one throughput claim.
+Pass `--agrep /path/to/binary` to measure an existing build. To evaluate a
+code change, run the same fixture size and run count for both binaries on the
+same machine, keep both JSON reports, and compare the per-workload medians.

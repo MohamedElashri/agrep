@@ -6,16 +6,24 @@ const languages = document.getElementById("languages");
 const key = document.getElementById("key");
 const rules = document.getElementById("rules");
 const status = document.getElementById("status");
+const clear = document.getElementById("clear");
+const copy = document.getElementById("copy");
+let currentKey = "";
 
 function refresh() {
   if (typeof window.agrepNormalize !== "function") return;
   const result = JSON.parse(window.agrepNormalize(input.value, profile.value, languages.value));
   if (result.error) {
+    currentKey = "";
     key.textContent = "";
+    key.classList.remove("changed");
+    copy.disabled = true;
     rules.replaceChildren();
     status.textContent = result.error;
     return;
   }
+  currentKey = result.key;
+  copy.disabled = !currentKey;
   key.textContent = result.key || "∅ (empty key)";
   key.classList.toggle("changed", result.key !== input.value);
   rules.replaceChildren();
@@ -40,12 +48,25 @@ for (const element of [input, profile, languages]) {
 for (const button of document.querySelectorAll("[data-example]")) {
   button.addEventListener("click", () => {
     input.value = button.dataset.example;
-    if (button.textContent.includes("rasm")) profile.value = "loose";
-    if (button.textContent.includes("Persian")) languages.value = "ar,fa";
+    profile.value = button.dataset.profile;
+    languages.value = button.dataset.languages;
     refresh();
     input.focus();
   });
 }
+clear.addEventListener("click", () => {
+  input.value = "";
+  refresh();
+  input.focus();
+});
+copy.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(currentKey);
+    status.textContent = "Comparison key copied to clipboard.";
+  } catch {
+    status.textContent = "Could not copy the key. Select the result to copy it manually.";
+  }
+});
 
 async function start() {
   try {
@@ -62,6 +83,7 @@ async function start() {
   } catch (error) {
     status.textContent = `Could not start the playground: ${error.message}`;
     key.textContent = "Unavailable";
+    copy.disabled = true;
   }
 }
 
