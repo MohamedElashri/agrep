@@ -19,6 +19,13 @@ import "strings"
 // left to expand, so applying it twice does nothing the first pass didn't
 // already do.
 func expandPresentationForms(s string) string {
+	// Every Arabic presentation form in the table is encoded with an EF
+	// leading byte in UTF-8. Most lines have none, so avoid decoding every
+	// rune and probing the table in that common case.
+	if strings.IndexByte(s, 0xef) < 0 {
+		return s
+	}
+
 	var b strings.Builder
 	changed := false
 

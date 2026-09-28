@@ -125,6 +125,9 @@ jobs:
       - name: Fuzz literal matcher no panic
         run: go test -run '^$' -fuzz '^FuzzNewLiteralNoPanic$' -fuzztime 20s ./match
 
+      - name: Fuzz raw literal shortcut soundness
+        run: go test -run '^$' -fuzz '^FuzzStableRawMatchImpliesNormalizedMatch$' -fuzztime 20s ./match
+
       - name: Fuzz regex matcher no panic
         run: go test -run '^$' -fuzz '^FuzzNewRegexNoPanic$' -fuzztime 20s ./match
 

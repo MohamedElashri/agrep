@@ -8,6 +8,7 @@ import (
 
 	"github.com/MohamedElashri/agrep/arabic"
 	"golang.org/x/text/cases"
+	"golang.org/x/text/unicode/norm"
 )
 
 // Span is a half-open byte range [Start, End) in a normalized string.
@@ -71,6 +72,7 @@ func NewLiterals(queries []string, p arabic.Profile, ignoreCase bool) (Matcher, 
 	return &literalMatcher{
 		queries:    append([]string(nil), queries...),
 		keys:       keys,
+		stableKeys: stableRawKeys(keys, queries, p, ignoreCase),
 		profile:    p,
 		ignoreCase: ignoreCase,
 	}, nil
@@ -79,12 +81,104 @@ func NewLiterals(queries []string, p arabic.Profile, ignoreCase bool) (Matcher, 
 type literalMatcher struct {
 	queries    []string // original, unnormalized patterns
 	keys       []string // normalized comparison keys; guaranteed non-empty
+	stableKeys []string // keys whose raw occurrence survives normalization
 	profile    arabic.Profile
 	ignoreCase bool
 }
 
 func (m *literalMatcher) String() string          { return strings.Join(m.queries, " | ") }
 func (m *literalMatcher) Profile() arabic.Profile { return m.profile }
+
+// MatchesStableRaw can prove a positive literal match without normalizing the
+// whole line. A false result is inconclusive: folding may still create a match.
+func (m *literalMatcher) MatchesStableRaw(line string) bool {
+	for _, key := range m.stableKeys {
+		if strings.Contains(line, key) {
+			return true
+		}
+	}
+	return false
+}
+
+func stableRawKeys(keys, queries []string, p arabic.Profile, ignoreCase bool) []string {
+	if ignoreCase {
+		return nil
+	}
+	var stable []string
+	for i, key := range keys {
+		safe := true
+		for _, r := range key {
+			// These are canonical starters. Normalization cannot move a mark
+			// across one or insert text between two of them. Check that this
+			// profile leaves each character unchanged as well.
+			if !rawStarter(r) || p.Normalize(string(r)) != string(r) {
+				safe = false
+				break
+			}
+		}
+		if safe {
+			stable = append(stable, key)
+			// Common single-letter folds can still be recognized in raw text.
+			// Bound the combinations so a long query cannot make every line
+			// probe an exponential number of variants.
+			variants := []string{key}
+			for pos, r := range []rune(key) {
+				var alternate rune
+				switch {
+				case r == 'ه' && p.FoldTaMarbuta:
+					alternate = 'ة'
+				case r == 'ي' && p.FoldAlefMaksura:
+					alternate = 'ى'
+				}
+				if alternate == 0 || len(variants) >= 32 {
+					continue
+				}
+				for _, variant := range append([]string(nil), variants...) {
+					runes := []rune(variant)
+					runes[pos] = alternate
+					candidate := string(runes)
+					if p.Normalize(candidate) == key {
+						variants = append(variants, candidate)
+						stable = append(stable, candidate)
+					}
+				}
+			}
+		}
+		// An exact copy of the original query also survives as its normalized
+		// key when it consists only of canonical starters. This covers common
+		// spellings such as مكتبة, whose key contains a folded final letter.
+		query := queries[i]
+		if query == key || !norm.NFD.IsNormalString(query) {
+			continue
+		}
+		safe = true
+		for _, r := range query {
+			if !rawStarter(r) {
+				safe = false
+				break
+			}
+		}
+		if safe {
+			seen := false
+			for _, candidate := range stable {
+				if candidate == query {
+					seen = true
+					break
+				}
+			}
+			if !seen {
+				stable = append(stable, query)
+			}
+		}
+	}
+	return stable
+}
+
+func rawStarter(r rune) bool {
+	return (r >= 'ا' && r <= 'ي') ||
+		(r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') ||
+		(r >= '0' && r <= '9')
+}
 
 func (m *literalMatcher) FindAll(normalized string) []Span {
 	var starts, ends []int

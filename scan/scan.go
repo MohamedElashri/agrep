@@ -76,6 +76,7 @@ func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) erro
 	var lastEmitted int64
 	emitted := false
 	contextEnabled := opts.BeforeContext > 0 || opts.AfterContext > 0
+	rawPositive, hasRawPositive := m.(interface{ MatchesStableRaw(string) bool })
 
 	emit := func(mt Match, context bool) error {
 		mt.Context = context
@@ -137,11 +138,15 @@ func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) erro
 				mappedIndexPool.Put(indexBuffer)
 			}
 		} else {
-			normalized := profile.Normalize(line)
-			if fast, ok := m.(interface{ Matches(string) bool }); ok {
-				matched = fast.Matches(normalized)
+			if hasRawPositive && rawPositive.MatchesStableRaw(line) {
+				matched = true
 			} else {
-				matched = len(m.FindAll(normalized)) > 0
+				normalized := profile.Normalize(line)
+				if fast, ok := m.(interface{ Matches(string) bool }); ok {
+					matched = fast.Matches(normalized)
+				} else {
+					matched = len(m.FindAll(normalized)) > 0
+				}
 			}
 		}
 		selected := matched != opts.InvertMatch
@@ -211,26 +216,32 @@ func isWordRune(r rune, languages arabic.LanguageSet) bool {
 // allocating the entire hostile line. done is true only for EOF with no data.
 func readLine(reader *bufio.Reader, maxBytes uint64, lineNumber int64) (line string, done bool, err error) {
 	var buf bytes.Buffer
-
 	for {
 		fragment, readErr := reader.ReadSlice('\n')
-		if len(fragment) > 0 {
-			_, _ = buf.Write(fragment) // bytes.Buffer.Write never returns an error.
-		}
-
 		switch {
 		case readErr == nil:
-			line = trimLineEnding(buf.String())
+			if buf.Len() == 0 {
+				line = trimLineEnding(string(fragment))
+			} else {
+				_, _ = buf.Write(fragment)
+				line = trimLineEnding(buf.String())
+			}
 		case errors.Is(readErr, bufio.ErrBufferFull):
+			_, _ = buf.Write(fragment)
 			if maxBytes > 0 && uint64(buf.Len()) > maxBytes {
 				return "", false, fmt.Errorf("line %d exceeds --max-line-bytes=%d", lineNumber, maxBytes)
 			}
 			continue
 		case errors.Is(readErr, io.EOF):
-			if buf.Len() == 0 {
+			if buf.Len() == 0 && len(fragment) == 0 {
 				return "", true, nil
 			}
-			line = buf.String()
+			if buf.Len() == 0 {
+				line = string(fragment)
+			} else {
+				_, _ = buf.Write(fragment)
+				line = buf.String()
+			}
 		default:
 			return "", false, readErr
 		}

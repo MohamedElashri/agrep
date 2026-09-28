@@ -2,10 +2,71 @@ package match
 
 import (
 	"errors"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/MohamedElashri/agrep/arabic"
 )
+
+func TestStableRawMatchImpliesNormalizedMatch(t *testing.T) {
+	profiles := []arabic.Profile{arabic.ProfileSearch, arabic.ProfileStrict, arabic.ProfileLoose}
+	queries := []string{"مكتبة", "المدينه", "ا", "مَد", "كتاب", "abc", "١٢٣"}
+	lines := []string{
+		"مكتبة", "مَكْتَبَة", "المدينة", "المدينه", "مَد",
+		"كتاب", "ﻛﺘﺎﺏ", "abc", "أ", "١٢٣", "بِالكتاب",
+	}
+	for _, p := range profiles {
+		for _, query := range queries {
+			m, err := NewLiteral(query, p)
+			if err != nil {
+				continue
+			}
+			literal := m.(*literalMatcher)
+			for _, line := range lines {
+				if literal.MatchesStableRaw(line) && !strings.Contains(p.Normalize(line), literal.keys[0]) {
+					t.Fatalf("raw positive was false after normalization: query %q, line %q, profile %+v", query, line, p)
+				}
+			}
+		}
+	}
+	caseFolded, err := NewLiterals([]string{"ABC"}, arabic.ProfileSearch, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if caseFolded.(*literalMatcher).MatchesStableRaw("ABC") {
+		t.Fatal("case-folded literal used the raw positive shortcut")
+	}
+	folded, err := NewLiteral("المدينه", arabic.ProfileSearch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !folded.(*literalMatcher).MatchesStableRaw("المدينة") {
+		t.Fatal("common ta-marbuta spelling did not use the raw positive shortcut")
+	}
+}
+
+func FuzzStableRawMatchImpliesNormalizedMatch(f *testing.F) {
+	f.Add("مكتبة", "افتتاح مكتبة جديدة", uint8(0))
+	f.Add("المدينه", "المدينة", uint8(0))
+	f.Add("كتاب", "كِتاب", uint8(0))
+	f.Add("ا", "أِ", uint8(1))
+	profiles := [...]arabic.Profile{arabic.ProfileSearch, arabic.ProfileStrict, arabic.ProfileLoose}
+	f.Fuzz(func(t *testing.T, query, line string, profileIndex uint8) {
+		if !utf8.ValidString(line) {
+			return
+		}
+		profile := profiles[int(profileIndex)%len(profiles)]
+		m, err := NewLiteral(query, profile)
+		if err != nil {
+			return
+		}
+		literal := m.(*literalMatcher)
+		if literal.MatchesStableRaw(line) && !literal.Matches(profile.Normalize(line)) {
+			t.Fatalf("raw positive was false after normalization: query %q, line %q, profile %+v", query, line, profile)
+		}
+	})
+}
 
 func TestNewLiteralRejectsEmptyKey(t *testing.T) {
 	for _, query := range []string{"", "َّ", "ــ"} {
