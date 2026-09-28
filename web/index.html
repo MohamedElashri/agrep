@@ -3,70 +3,92 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#101b25">
-  <title>agrep normalization playground</title>
+  <meta name="theme-color" content="#f3f1eb">
+  <title>Normalization playground · agrep</title>
   <link rel="stylesheet" href="style.css">
   <script src="wasm_exec.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
   <main class="shell">
-    <header>
-      <p class="eyebrow">agrep / Arabic text tools</p>
-      <h1>See what the search engine sees.</h1>
-      <p class="intro">Paste Arabic-script text, choose a profile, and inspect its comparison key. This runs in your browser using the same Go normalization library as the CLI.</p>
-    </header>
-
-    <section class="workspace" aria-label="Normalization playground">
-      <div class="controls">
-        <label for="profile">Profile
-          <select id="profile">
-            <option value="search">Search (default)</option>
-            <option value="strict">Strict</option>
-            <option value="loose">Loose</option>
-            <option value="lucene">Lucene</option>
-            <option value="camel">CAMeL</option>
-          </select>
-        </label>
-        <label for="languages">Language
-          <select id="languages">
-            <option value="ar">Arabic</option>
-            <option value="fa">Persian</option>
-            <option value="ar,fa">Arabic + Persian</option>
-            <option value="ur">Urdu</option>
-            <option value="ps">Pashto</option>
-            <option value="ku">Sorani Kurdish</option>
-            <option value="ug">Uyghur</option>
-          </select>
-        </label>
+    <aside class="intro" aria-labelledby="page-title">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">ا</span><span>agrep<span class="brand-dot">.</span></span></div>
+      <div class="intro-copy">
+        <p class="eyebrow">Arabic-script search / playground</p>
+        <h1 id="page-title">See the text behind the match.</h1>
+        <p>See the comparison key agrep uses for searching. Switch profiles and languages to explore the result.</p>
       </div>
+      <div class="intro-foot">
+        <span class="intro-line" aria-hidden="true"></span>
+        <p>Same Go normalization library as the CLI. Your text stays in this browser.</p>
+      </div>
+    </aside>
 
-      <div class="panels">
-        <label class="panel" for="input"><span class="panel-heading">Original text</span>
-          <textarea id="input" dir="auto" spellcheck="false">ﻻ يوجد ﻛِﺘـﺎﺏ</textarea>
-        </label>
-        <div class="panel" aria-live="polite">
-          <span class="panel-heading">Comparison key</span>
-          <output id="key" class="key" dir="auto">Loading…</output>
+    <div class="main-column">
+      <header class="page-header">
+        <div>
+          <p class="section-kicker">Interactive tool</p>
+          <h2>Normalization playground</h2>
         </div>
-      </div>
+        <span class="live-label"><span aria-hidden="true"></span> Live preview</span>
+      </header>
 
-      <div class="rule-panel">
-        <h2>Rules affecting this example</h2>
-        <p>Each highlighted rule changes the final key when disabled by itself.</p>
-        <div id="rules" class="rules" aria-live="polite"></div>
-      </div>
-      <p id="status" class="status" role="status">Loading the Go WebAssembly module…</p>
-    </section>
+      <section class="workspace" aria-label="Normalization playground">
+        <div class="controls">
+          <label for="profile">Normalization profile
+            <select id="profile">
+              <option value="search">Search</option>
+              <option value="strict">Strict</option>
+              <option value="loose">Loose</option>
+              <option value="lucene">Lucene</option>
+              <option value="camel">CAMeL</option>
+            </select>
+          </label>
+          <label for="languages">Text language
+            <select id="languages">
+              <option value="ar">Arabic</option>
+              <option value="fa">Persian</option>
+              <option value="ar,fa">Arabic + Persian</option>
+              <option value="ur">Urdu</option>
+              <option value="ps">Pashto</option>
+              <option value="ku">Sorani Kurdish</option>
+              <option value="ug">Uyghur</option>
+            </select>
+          </label>
+        </div>
 
-    <div class="examples" aria-label="Example texts">
-      <span>Try an example:</span>
-      <button type="button" data-example="أعلنت المدينة افتتاح مكتبة جديدة.">Voweled and spelling folds</button>
-      <button type="button" data-example="ﻻ يوجد ﻛِﺘـﺎﺏ">PDF presentation forms</button>
-      <button type="button" data-example="کتاب تازه است.">Persian letters</button>
-      <button type="button" data-example="ب ت ث ن ي">Dotless rasm (Loose)</button>
+        <div class="examples" aria-label="Example texts">
+          <span>Try an example</span>
+          <div class="example-list">
+            <button type="button" data-example="أعلنت المدينة افتتاح مكتبة جديدة." data-profile="search" data-languages="ar">Spelling folds</button>
+            <button type="button" data-example="ﻻ يوجد ﻛِﺘـﺎﺏ" data-profile="search" data-languages="ar">PDF forms</button>
+            <button type="button" data-example="کتاب تازه است." data-profile="search" data-languages="ar,fa">Persian</button>
+            <button type="button" data-example="ب ت ث ن ي" data-profile="loose" data-languages="ar">Dotless rasm</button>
+          </div>
+        </div>
+
+        <div class="panels">
+          <div class="panel panel-input">
+            <div class="panel-top"><label for="input"><span class="panel-number">01</span> Original text</label><button class="text-button" id="clear" type="button">Clear</button></div>
+            <textarea id="input" dir="auto" spellcheck="false" placeholder="Type or paste Arabic-script text…">ﻻ يوجد ﻛِﺘـﺎﺏ</textarea>
+          </div>
+          <div class="panel panel-result">
+            <div class="panel-top"><span class="panel-title"><span class="panel-number">02</span> Comparison key</span><button class="text-button" id="copy" type="button" disabled>Copy key</button></div>
+            <output id="key" class="key" dir="auto" aria-live="polite">Loading…</output>
+            <p class="result-note">This is the text agrep compares for matching.</p>
+          </div>
+        </div>
+
+        <div class="rule-panel">
+          <h3>Rules affecting this text</h3>
+          <p>A rule appears when turning it off alone would change the key.</p>
+          <div id="rules" class="rules" aria-live="polite"></div>
+        </div>
+        <p id="status" class="status" role="status">Loading the Go WebAssembly module…</p>
+      </section>
+
+      <footer>Read the <a href="https://github.com/MohamedElashri/agrep/blob/main/docs/NORMALIZATION.md">normalization reference</a> for rule definitions and caveats. <a href="GO-LICENSE.txt">Go runtime license</a>.</footer>
     </div>
-    <footer>For rule definitions and caveats, see <a href="https://github.com/MohamedElashri/agrep/blob/main/docs/NORMALIZATION.md">the normalization reference</a>. No text is sent to a server. <a href="GO-LICENSE.txt">Go runtime license</a>.</footer>
   </main>
 </body>
 </html>
