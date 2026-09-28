@@ -33,6 +33,26 @@ func BenchmarkSearchMapped(b *testing.B) {
 	benchmarkSearch(b, Options{MapSpans: true})
 }
 
+func BenchmarkSearchMappedMiss(b *testing.B) {
+	benchmarkSearchQueryWithOptions(b, benchFixture(10*1024*1024), "غيرموجود", false, Options{MapSpans: true})
+}
+
+func BenchmarkSearchMappedSparseHit(b *testing.B) {
+	var lines strings.Builder
+	for lines.Len() < 10*1024*1024 {
+		for i := 0; i < 999; i++ {
+			lines.WriteString(benchLine)
+			lines.WriteByte('\n')
+		}
+		lines.WriteString("هذا غيرموجود هنا\n")
+	}
+	benchmarkSearchQueryWithOptions(b, lines.String(), "غيرموجود", true, Options{MapSpans: true})
+}
+
+func BenchmarkSearchWordMiss(b *testing.B) {
+	benchmarkSearchQueryWithOptions(b, benchFixture(10*1024*1024), "غيرموجود", false, Options{WordRegexp: true})
+}
+
 func BenchmarkSearchPlain(b *testing.B) {
 	line := "أعلنت المدينة افتتاح مكتبة جديدة.\n"
 	var fixture strings.Builder

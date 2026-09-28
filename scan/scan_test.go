@@ -3,6 +3,7 @@ package scan
 import (
 	"bytes"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -234,6 +235,21 @@ func TestSearchMapsPresentationComponentToWholeLigature(t *testing.T) {
 	}
 }
 
+func TestSearchMappedLongLineThenShortLine(t *testing.T) {
+	m := mustLiteral(t, "غ")
+	long := strings.Repeat("ا", (1<<17)+1) + " غ"
+	var got []Match
+	found, err := Search(strings.NewReader(long+"\nغ\n"), m, Options{MapSpans: true}, func(mt Match) error {
+		got = append(got, mt)
+		return nil
+	})
+	if err != nil || !found || len(got) != 2 ||
+		len(got[0].Spans) != 1 || got[0].Spans[0] != (Span{len(long) - len("غ"), len(long)}) ||
+		len(got[1].Spans) != 1 || got[1].Spans[0] != (Span{0, len("غ")}) {
+		t.Fatalf("long then short mapped spans: found=%v, matches=%+v, err=%v", found, got, err)
+	}
+}
+
 func TestSearchWordRegexpUsesOriginalBoundaries(t *testing.T) {
 	m := mustLiteral(t, "كتاب")
 	input := "كتابه\nكتاب،\nالــكتاب\n"
@@ -268,6 +284,55 @@ func TestSearchWordRegexpTreatsPersianZWNJAsWordInternal(t *testing.T) {
 	}
 	if len(lines) != 1 || lines[0] != 2 {
 		t.Fatalf("word matches = %v; want [2]", lines)
+	}
+}
+
+type matcherWithoutRawShortcuts struct{ match.Matcher }
+
+func TestMappedRawRejectionMatchesFullPath(t *testing.T) {
+	input := "سطر بعيد\nﻍ\nغَ،\nكِتاب\nثوب\nغَيِّر\n"
+	for _, queries := range [][]string{{"غ"}, {"غ", "ث"}} {
+		m, err := match.NewLiterals(queries, arabic.ProfileSearch, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, opts := range []Options{
+			{MapSpans: true},
+			{MapSpans: true, BeforeContext: 1, AfterContext: 1},
+			{MapSpans: true, WordRegexp: true},
+			{MapSpans: true, InvertMatch: true},
+			{WordRegexp: true, OmitText: true},
+		} {
+			search := func(m match.Matcher) (bool, []Match, error) {
+				var got []Match
+				found, err := Search(strings.NewReader(input), m, opts, func(mt Match) error {
+					got = append(got, mt)
+					return nil
+				})
+				return found, got, err
+			}
+			found, got, err := search(m)
+			wantFound, want, wantErr := search(matcherWithoutRawShortcuts{m})
+			if err != nil || wantErr != nil || found != wantFound || !reflect.DeepEqual(got, want) {
+				t.Fatalf("queries=%q opts=%+v: optimized=(%v,%+v,%v), full=(%v,%+v,%v)",
+					queries, opts, found, got, err, wantFound, want, wantErr)
+			}
+		}
+	}
+}
+
+func TestMappedRawRejectionPreservesReadErrors(t *testing.T) {
+	m := mustLiteral(t, "غ")
+	for _, opts := range []Options{{MapSpans: true}, {WordRegexp: true}} {
+		opts.MaxLineBytes = 5
+		if _, err := Search(strings.NewReader("abcdef\n"), m, opts, func(Match) error { return nil }); err == nil {
+			t.Fatalf("mapped rejection bypassed line limit: %+v", opts)
+		}
+		opts.MaxLineBytes = 0
+		if _, err := Search(bytes.NewReader([]byte{'x', 0xff, '\n'}), m, opts,
+			func(Match) error { return nil }); !errors.Is(err, ErrInvalidUTF8) {
+			t.Fatalf("mapped rejection bypassed UTF-8 validation: %+v, %v", opts, err)
+		}
 	}
 }
 

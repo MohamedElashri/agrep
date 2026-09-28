@@ -2,10 +2,15 @@ package arabic
 
 import (
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"golang.org/x/text/unicode/norm"
 )
+
+var mappedTokenPool sync.Pool
+
+const maxPooledMappedTokens = 1 << 17 // about 3 MiB of mappedRune storage
 
 // NormalizeMapped returns the same comparison key as Normalize and an index
 // mapping normalized byte offsets back to byte offsets in s. idx has
@@ -29,7 +34,13 @@ func (p Profile) NormalizeMappedInto(s string, dst []int32) (key string, idx []i
 		return "", append(dst, 0)
 	}
 
-	tokens := mappedDecompose(s, p.FoldPresentation, p.Languages)
+	var tokenBuffer *[]mappedRune
+	if pooled := mappedTokenPool.Get(); pooled != nil {
+		tokenBuffer = pooled.(*[]mappedRune)
+	} else {
+		tokenBuffer = new([]mappedRune)
+	}
+	tokens := mappedDecomposeInto(s, p.FoldPresentation, p.Languages, (*tokenBuffer)[:0])
 	kept := tokens[:0]
 	lastBase := rune(0)
 	for _, token := range tokens {
@@ -57,6 +68,10 @@ func (p Profile) NormalizeMappedInto(s string, dst []int32) (key string, idx []i
 		}
 	}
 	dst = append(dst, int32(len(s)))
+	if cap(tokens) <= maxPooledMappedTokens {
+		*tokenBuffer = tokens[:0]
+		mappedTokenPool.Put(tokenBuffer)
+	}
 	return b.String(), dst
 }
 
@@ -87,8 +102,10 @@ type mappedRune struct {
 	start, end int
 }
 
-func mappedDecompose(s string, foldPresentation bool, languages LanguageSet) []mappedRune {
-	tokens := make([]mappedRune, 0, utf8.RuneCountInString(s))
+func mappedDecomposeInto(s string, foldPresentation bool, languages LanguageSet, tokens []mappedRune) []mappedRune {
+	if count := utf8.RuneCountInString(s); cap(tokens) < count {
+		tokens = make([]mappedRune, 0, count)
+	}
 	for offset := 0; offset < len(s); {
 		r, size := utf8.DecodeRuneInString(s[offset:])
 		end := offset + size

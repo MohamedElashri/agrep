@@ -115,9 +115,9 @@ func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) erro
 		var lineText string
 		if !needsMapped && hasRawPositive && rawPositive.MatchesStableRawBytes(line) {
 			matched = true
-		} else if !needsMapped && hasRawNegative && rawNegative.CannotMatchRawBytes(line) {
-			// No literal can match. Keep normal selection, inversion, and
-			// context handling below without normalizing this line.
+		} else if hasRawNegative && rawNegative.CannotMatchRawBytes(line) {
+			// No literal can match, so a mapped index is unnecessary too.
+			// Keep normal selection, inversion, and context handling below.
 		} else if needsMapped {
 			lineText = string(line)
 			var scratch []int32

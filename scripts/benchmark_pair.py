@@ -43,11 +43,15 @@ def main():
                         help="also measure varied misses and long-line hits")
     parser.add_argument("--phase3-cases", action="store_true",
                         help="also measure empty-file startup and filename summary modes")
+    parser.add_argument("--phase4-cases", action="store_true",
+                        help="also measure mapped misses, sparse hits, and word boundaries")
     parser.add_argument("--check-corpus", action="store_true",
                         help="compare full CLI output on every corpus case")
     args = parser.parse_args()
     if args.size_mib <= 0 or args.runs <= 0:
         parser.error("--size-mib and --runs must be positive")
+    if args.phase4_cases and not args.phase2_cases:
+        parser.error("--phase4-cases requires --phase2-cases for the varied fixture")
 
     binaries = {"before": args.before.resolve(), "after": args.after.resolve()}
     for binary in binaries.values():
@@ -61,6 +65,8 @@ def main():
         output_digest = hashlib.sha256()
         comparisons = 0
         modes = (("--json",), ("-o",), ("-n",))
+        if args.phase4_cases:
+            modes += (("--json", "-w"), ("-n", "-w"), ("--json", "-C", "1"))
         for case in corpus_cases:
             for mode in modes:
                 command_tail = [*mode, *case["args"], str(CORPUS / case["file"])]
@@ -133,6 +139,18 @@ def main():
             ("files_without_match", msa, ["-L", "غيرموجود"], 0, None),
         ))
         extra_fixtures.append((empty, ()))
+    if args.phase4_cases:
+        sparse_block = (CORPUS / "msa.txt").read_bytes() * 999 + "هذه غيرموجود هنا\n".encode()
+        sparse = fixture(fixture_dir / "sparse.txt", "sparse mapped hits",
+                         sparse_block, size)
+        cases.extend((
+            ("json_miss", msa, ["--json", "غيرموجود"], 1, None),
+            ("json_varied_miss", varied, ["--json", "غيرموجود"], 1, None),
+            ("json_sparse_hit", sparse, ["--json", "غيرموجود"], 0, sparse.lines // 1000),
+            ("word_hit", msa, ["-w", "-c", "مكتبة"], 0, msa.lines),
+            ("word_miss", msa, ["-w", "-c", "غيرموجود"], 1, None),
+        ))
+        extra_fixtures.append((sparse, ("msa.txt",)))
     report = []
     for name, source, options, expected_exit, expected_lines in cases:
         commands = {label: [str(binary), *options, str(source.path)]
@@ -150,7 +168,7 @@ def main():
             raise RuntimeError(f"{name}: before and after output differs")
         output = checked["before"].stdout
         if expected_lines is not None:
-            if name == "json_spans":
+            if name.startswith("json_"):
                 records = output.splitlines()
                 if len(records) != expected_lines or not json.loads(records[0])["spans"]:
                     raise RuntimeError(f"{name}: unexpected JSON records or spans")
@@ -159,6 +177,9 @@ def main():
         elif name in ("files_with_match", "files_without_match"):
             if output != (str(source.path) + "\n").encode():
                 raise RuntimeError(f"{name}: unexpected filename output")
+        elif name in ("json_miss", "json_varied_miss"):
+            if output:
+                raise RuntimeError(f"{name}: expected empty JSON output")
         elif output.strip() != b"0":
             raise RuntimeError(f"{name}: miss count is not zero")
 
@@ -219,6 +240,8 @@ def main():
                             if source.name == "64 KiB lines"
                             else "empty file"
                             if source.name == "empty startup input"
+                            else "999 MSA lines followed by one literal hit, repeated"
+                            if source.name == "sparse mapped hits"
                             else "repeat source bytes")}
             for source, names in [(msa, ("msa.txt",)), (quran, ("quran.txt",)),
                                   *extra_fixtures]

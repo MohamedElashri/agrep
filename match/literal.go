@@ -180,7 +180,7 @@ func (m *literalMatcher) CannotMatchRawBytes(line []byte) bool {
 		if bytes.Contains(line, m.anchorBytes) {
 			return false
 		}
-	} else if bytes.IndexAny(line, m.rawAnchors) >= 0 {
+	} else if bytes.ContainsAny(line, m.rawAnchors) {
 		return false
 	}
 	return bytes.IndexByte(line, 0xef) < 0
