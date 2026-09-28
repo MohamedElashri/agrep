@@ -82,6 +82,32 @@ func TestSearchRejectsInvalidUTF8(t *testing.T) {
 	}
 }
 
+func TestRawRejectionPreservesSelectionAndErrors(t *testing.T) {
+	m := mustLiteral(t, "غ")
+	var got []Match
+	found, err := Search(strings.NewReader("سطر\nغ\nآخر\n"), m,
+		Options{InvertMatch: true, AfterContext: 1}, func(mt Match) error {
+			got = append(got, mt)
+			return nil
+		})
+	if err != nil || !found || len(got) != 3 {
+		t.Fatalf("Search = found %v, err %v, matches %+v", found, err, got)
+	}
+	if got[0].Line != 1 || got[0].Context || got[1].Line != 2 || !got[1].Context ||
+		got[2].Line != 3 || got[2].Context {
+		t.Fatalf("inverted/context output changed: %+v", got)
+	}
+
+	if _, err := Search(strings.NewReader("abcdef\n"), m,
+		Options{MaxLineBytes: 5}, func(Match) error { return nil }); err == nil {
+		t.Fatal("raw rejection bypassed the line limit")
+	}
+	if _, err := Search(strings.NewReader(string([]byte{'x', 0xff, '\n'})), m,
+		Options{}, func(Match) error { return nil }); !errors.Is(err, ErrInvalidUTF8) {
+		t.Fatalf("raw rejection bypassed UTF-8 validation: %v", err)
+	}
+}
+
 func TestSearchPropagatesCallbackFailure(t *testing.T) {
 	want := errors.New("write failed")
 	m := mustLiteral(t, "match")

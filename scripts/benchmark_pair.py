@@ -12,7 +12,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from benchmark import CORPUS, ROOT, cpu_model, fixture, sha256
+from benchmark import CORPUS, ROOT, Fixture, cpu_model, fixture, sha256
 
 
 def invoke(command, *, capture=False):
@@ -39,6 +39,10 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--size-mib", type=int, default=8)
     parser.add_argument("--runs", type=int, default=5)
+    parser.add_argument("--phase2-cases", action="store_true",
+                        help="also measure varied misses and long-line hits")
+    parser.add_argument("--check-corpus", action="store_true",
+                        help="compare full CLI output on every corpus case")
     args = parser.parse_args()
     if args.size_mib <= 0 or args.runs <= 0:
         parser.error("--size-mib and --runs must be positive")
@@ -48,6 +52,35 @@ def main():
         if not binary.is_file():
             parser.error(f"binary does not exist: {binary}")
 
+    corpus_check = None
+    if args.check_corpus:
+        corpus_path = CORPUS / "cases.json"
+        corpus_cases = json.loads(corpus_path.read_text(encoding="utf-8"))
+        output_digest = hashlib.sha256()
+        comparisons = 0
+        modes = (("--json",), ("-o",), ("-n",))
+        for case in corpus_cases:
+            for mode in modes:
+                command_tail = [*mode, *case["args"], str(CORPUS / case["file"])]
+                checked = {label: invoke([str(binary), *command_tail], capture=True)
+                           for label, binary in binaries.items()}
+                before, after = checked["before"], checked["after"]
+                if (before.returncode, before.stdout, before.stderr) != (
+                        after.returncode, after.stdout, after.stderr):
+                    raise RuntimeError(f"corpus output differs: {case['name']} {mode}")
+                output_digest.update(case["name"].encode())
+                output_digest.update(" ".join(mode).encode())
+                output_digest.update(bytes([before.returncode]))
+                output_digest.update(before.stdout)
+                output_digest.update(before.stderr)
+                comparisons += 1
+        corpus_check = {"source": str(corpus_path.relative_to(ROOT)),
+                        "source_sha256": sha256(corpus_path),
+                        "cases": len(corpus_cases),
+                        "modes": [list(mode) for mode in modes],
+                        "comparisons": comparisons,
+                        "combined_output_sha256": output_digest.hexdigest()}
+
     fixture_dir = args.fixture_dir.resolve()
     fixture_dir.mkdir(parents=True, exist_ok=True)
     size = args.size_mib << 20
@@ -56,13 +89,38 @@ def main():
     quran = fixture(fixture_dir / "quran.txt", "repeated voweled Arabic",
                     (CORPUS / "quran.txt").read_bytes(), size)
 
-    cases = (
+    cases = [
         ("exact_count", msa, ["-c", "مكتبة"], 0, msa.lines),
         ("literal_miss", msa, ["-c", "غيرموجود"], 1, None),
         ("hamza_fold", msa, ["-c", "اعلنت"], 0, msa.lines),
         ("voweled", quran, ["-c", "قال"], 0, quran.lines),
         ("json_spans", msa, ["--json", "مكتبه"], 0, msa.lines),
-    )
+    ]
+    extra_fixtures = []
+    if args.phase2_cases:
+        varied_sources = ("msa.txt", "quran.txt", "ocr.txt", "pdf.txt",
+                          "social.txt", "languages.txt", "poetry.txt", "distinct.txt")
+        line_pool = [line for name in varied_sources
+                     for line in (CORPUS / name).read_bytes().splitlines() if line]
+        varied_path = fixture_dir / "varied.txt"
+        varied_size = 0
+        varied_lines = 0
+        with varied_path.open("wb") as output:
+            while varied_size < size:
+                line = line_pool[varied_lines % len(line_pool)] + b" #" + str(varied_lines).encode() + b"\n"
+                output.write(line)
+                varied_size += len(line)
+                varied_lines += 1
+        varied = Fixture("varied unique corpus lines", varied_path, varied_size, varied_lines)
+        long_source = (CORPUS / "msa.txt").read_bytes().rstrip(b"\n")
+        long_line = long_source * ((64 << 10) // len(long_source)) + b"\n"
+        long_lines = fixture(fixture_dir / "long.txt", "64 KiB lines",
+                             long_line, size)
+        cases.extend((
+            ("varied_miss", varied, ["-c", "غيرموجود"], 1, None),
+            ("long_lines", long_lines, ["-c", "مكتبة"], 0, long_lines.lines),
+        ))
+        extra_fixtures = [(varied, varied_sources), (long_lines, ("msa.txt",))]
     report = []
     for name, source, options, expected_exit, expected_lines in cases:
         commands = {label: [str(binary), *options, str(source.path)]
@@ -126,6 +184,7 @@ def main():
         "locale": "C.UTF-8",
         "runs_per_binary": args.runs,
         "target_size_mib": args.size_mib,
+        "corpus_output_check": corpus_check,
         "binaries": {
             label: {"path": str(binary), "revision": revision,
                     "sha256": sha256(binary)}
@@ -138,9 +197,14 @@ def main():
         "fixtures": [
             {"name": source.name, "path": str(source.path), "bytes": source.bytes,
              "lines": source.lines, "sha256": sha256(source.path),
-             "source": str((CORPUS / source_name).relative_to(ROOT)),
-             "source_sha256": sha256(CORPUS / source_name)}
-            for source, source_name in ((msa, "msa.txt"), (quran, "quran.txt"))
+             "sources": {name: sha256(CORPUS / name) for name in names},
+             "generation": ("round-robin source lines with unique numeric suffix"
+                            if args.phase2_cases and source is extra_fixtures[0][0]
+                            else "64 KiB line repeated"
+                            if args.phase2_cases and source is extra_fixtures[1][0]
+                            else "repeat source bytes")}
+            for source, names in [(msa, ("msa.txt",)), (quran, ("quran.txt",)),
+                                  *extra_fixtures]
         ],
         "cases": report,
     }

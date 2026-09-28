@@ -77,6 +77,7 @@ func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) erro
 	emitted := false
 	contextEnabled := opts.BeforeContext > 0 || opts.AfterContext > 0
 	rawPositive, hasRawPositive := m.(interface{ MatchesStableRaw(string) bool })
+	rawNegative, hasRawNegative := m.(interface{ CannotMatchRaw(string) bool })
 
 	emit := func(mt Match, context bool) error {
 		mt.Context = context
@@ -106,7 +107,12 @@ func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) erro
 		matched := false
 		var originalSpans []Span
 		needsMapped := opts.WordRegexp || (opts.MapSpans && !opts.InvertMatch)
-		if needsMapped {
+		if !needsMapped && hasRawPositive && rawPositive.MatchesStableRaw(line) {
+			matched = true
+		} else if !needsMapped && hasRawNegative && rawNegative.CannotMatchRaw(line) {
+			// No literal can match. Keep normal selection, inversion, and
+			// context handling below without normalizing this line.
+		} else if needsMapped {
 			var scratch []int32
 			var indexBuffer *[]int32
 			if pooled := mappedIndexPool.Get(); pooled != nil {
@@ -138,15 +144,11 @@ func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) erro
 				mappedIndexPool.Put(indexBuffer)
 			}
 		} else {
-			if hasRawPositive && rawPositive.MatchesStableRaw(line) {
-				matched = true
+			normalized := profile.Normalize(line)
+			if fast, ok := m.(interface{ Matches(string) bool }); ok {
+				matched = fast.Matches(normalized)
 			} else {
-				normalized := profile.Normalize(line)
-				if fast, ok := m.(interface{ Matches(string) bool }); ok {
-					matched = fast.Matches(normalized)
-				} else {
-					matched = len(m.FindAll(normalized)) > 0
-				}
+				matched = len(m.FindAll(normalized)) > 0
 			}
 		}
 		selected := matched != opts.InvertMatch

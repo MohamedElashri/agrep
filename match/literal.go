@@ -73,6 +73,7 @@ func NewLiterals(queries []string, p arabic.Profile, ignoreCase bool) (Matcher, 
 		queries:    append([]string(nil), queries...),
 		keys:       keys,
 		stableKeys: stableRawKeys(keys, queries, p, ignoreCase),
+		rawAnchors: rawRejectionAnchors(keys, p, ignoreCase),
 		profile:    p,
 		ignoreCase: ignoreCase,
 	}, nil
@@ -82,6 +83,7 @@ type literalMatcher struct {
 	queries    []string // original, unnormalized patterns
 	keys       []string // normalized comparison keys; guaranteed non-empty
 	stableKeys []string // keys whose raw occurrence survives normalization
+	rawAnchors string   // necessary raw characters, one per key; empty disables rejection
 	profile    arabic.Profile
 	ignoreCase bool
 }
@@ -98,6 +100,54 @@ func (m *literalMatcher) MatchesStableRaw(line string) bool {
 		}
 	}
 	return false
+}
+
+// These letters are unchanged by every non-rasm profile and are not targets
+// of language or spelling folds. NFD cannot introduce one from a different
+// non-presentation rune; TestRawRejectionAnchorSources checks that Unicode
+// property against the current normalization tables. Presentation forms can
+// introduce them, but every such form has an EF leading UTF-8 byte.
+const rawRejectionAnchorRunes = "بتثجحخدذرزسشصضطظعغفقلمن"
+
+func rawRejectionAnchors(keys []string, p arabic.Profile, ignoreCase bool) string {
+	if ignoreCase || p.Rasm || len(keys) > 4 {
+		return ""
+	}
+	var anchors strings.Builder
+	for _, key := range keys {
+		found := false
+		for _, r := range key {
+			if !strings.ContainsRune(rawRejectionAnchorRunes, r) {
+				continue
+			}
+			if !strings.ContainsRune(anchors.String(), r) {
+				anchors.WriteRune(r)
+			}
+			found = true
+			break
+		}
+		if !found {
+			return ""
+		}
+	}
+	return anchors.String()
+}
+
+// CannotMatchRaw proves a negative only when every key has a stable anchor
+// and the line contains neither any anchor nor a possible presentation form.
+// A true result means normalization and matching can be skipped for this line.
+func (m *literalMatcher) CannotMatchRaw(line string) bool {
+	if m.rawAnchors == "" {
+		return false
+	}
+	if len(m.rawAnchors) == 2 {
+		if strings.Contains(line, m.rawAnchors) {
+			return false
+		}
+	} else if strings.ContainsAny(line, m.rawAnchors) {
+		return false
+	}
+	return strings.IndexByte(line, 0xef) < 0
 }
 
 func stableRawKeys(keys, queries []string, p arabic.Profile, ignoreCase bool) []string {

@@ -33,6 +33,38 @@ func BenchmarkSearchMapped(b *testing.B) {
 	benchmarkSearch(b, Options{MapSpans: true})
 }
 
+func BenchmarkSearchMiss(b *testing.B) {
+	benchmarkSearchQuery(b, benchFixture(10*1024*1024), "غيرموجود", false)
+}
+
+func BenchmarkSearchSparseHit(b *testing.B) {
+	var lines strings.Builder
+	for lines.Len() < 10*1024*1024 {
+		for i := 0; i < 999; i++ {
+			lines.WriteString(benchLine)
+			lines.WriteByte('\n')
+		}
+		lines.WriteString("هذا غيرموجود هنا\n")
+	}
+	benchmarkSearchQuery(b, lines.String(), "غيرموجود", true)
+}
+
+func benchmarkSearchQuery(b *testing.B, fixture, query string, wantFound bool) {
+	m := mustLiteral(b, query)
+	b.SetBytes(int64(len(fixture)))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		found, err := Search(strings.NewReader(fixture), m, Options{}, func(Match) error { return nil })
+		if err != nil {
+			b.Fatalf("Search: %v", err)
+		}
+		if found != wantFound {
+			b.Fatalf("Search found=%v; want %v", found, wantFound)
+		}
+	}
+}
+
 func benchmarkSearch(b *testing.B, opts Options) {
 	const fixtureSize = 10 * 1024 * 1024
 	fixture := benchFixture(fixtureSize)
