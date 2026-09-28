@@ -66,6 +66,14 @@ jobs:
       - name: Test optional document formats
         run: go test -count=1 -tags formats ./...
 
+      - name: Build and check WebAssembly playground
+        run: |
+          bash scripts/build-playground.sh
+          node scripts/smoke-playground.js
+
+      - name: Check release package recipes
+        run: python3 -B -m unittest discover -s scripts -p 'test_*.py'
+
   fuzz:
     name: Fuzz (regression corpus + short run)
     runs-on: ubuntu-latest

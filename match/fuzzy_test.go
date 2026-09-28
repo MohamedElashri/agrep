@@ -203,7 +203,7 @@ func FuzzMyersEndpointsMatchDP(f *testing.F) {
 	})
 }
 
-func BenchmarkFuzzyMatcher(b *testing.B) {
+func BenchmarkFuzzyMatcherPositional(b *testing.B) {
 	m, err := NewFuzzy([]string{"المستشرقون"}, arabic.ProfileSearch, false, 1)
 	if err != nil {
 		b.Fatal(err)
@@ -214,5 +214,20 @@ func BenchmarkFuzzyMatcher(b *testing.B) {
 	b.ResetTimer()
 	for range b.N {
 		_ = m.FindAll(key)
+	}
+}
+
+func BenchmarkFuzzyMatcherBoolean(b *testing.B) {
+	m, err := NewFuzzy([]string{"المستشرقون"}, arabic.ProfileSearch, false, 1)
+	if err != nil {
+		b.Fatal(err)
+	}
+	text := strings.Repeat("هذا نص عربي للبحث في مجموعة كبيرة من الكلمات. ", 200) + "المستشرقين"
+	key := m.Profile().Normalize(text)
+	boolean := m.(*fuzzyMatcher)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		_ = boolean.Matches(key)
 	}
 }

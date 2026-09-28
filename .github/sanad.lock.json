@@ -94,6 +94,61 @@
       "timestamp_source": "release"
     },
     {
+      "file": ".github/workflows/pages.yml",
+      "node": "jobs.build.steps[0].uses",
+      "owner": "actions",
+      "repo": "checkout",
+      "path": "",
+      "kind": "github-action",
+      "logical_ref": "v7.0.1",
+      "pinned_sha": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+      "resolved_at": "2026-09-28T16:18:14Z"
+    },
+    {
+      "file": ".github/workflows/pages.yml",
+      "node": "jobs.build.steps[1].uses",
+      "owner": "actions",
+      "repo": "setup-go",
+      "path": "",
+      "kind": "github-action",
+      "logical_ref": "v7.0.0",
+      "pinned_sha": "b7ad1dad31e06c5925ef5d2fc7ad053ef454303e",
+      "resolved_at": "2026-09-28T16:18:14Z"
+    },
+    {
+      "file": ".github/workflows/pages.yml",
+      "node": "jobs.build.steps[2].uses",
+      "owner": "actions",
+      "repo": "configure-pages",
+      "path": "",
+      "kind": "github-action",
+      "logical_ref": "v5.0.0",
+      "pinned_sha": "983d7736d9b0ae728b81ab479565c72886d7745b",
+      "resolved_at": "2026-09-28T16:18:14Z"
+    },
+    {
+      "file": ".github/workflows/pages.yml",
+      "node": "jobs.build.steps[4].uses",
+      "owner": "actions",
+      "repo": "upload-pages-artifact",
+      "path": "",
+      "kind": "github-action",
+      "logical_ref": "v4.0.0",
+      "pinned_sha": "7b1f4a764d45c48632c6b24a0339c27f5614fb0b",
+      "resolved_at": "2026-09-28T16:18:14Z"
+    },
+    {
+      "file": ".github/workflows/pages.yml",
+      "node": "jobs.deploy.steps[0].uses",
+      "owner": "actions",
+      "repo": "deploy-pages",
+      "path": "",
+      "kind": "github-action",
+      "logical_ref": "v5.0.1",
+      "pinned_sha": "368f82528645a54fb793d4d04e342629a3f51346",
+      "resolved_at": "2026-09-28T16:18:14Z"
+    },
+    {
       "file": ".github/workflows/release.yml",
       "node": "jobs.release.steps[0].uses",
       "owner": "actions",

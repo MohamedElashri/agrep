@@ -15,9 +15,13 @@ agrep --translit=buckwalter "ktAb" corpus.txt     # finds كتاب
 
 ## Install
 
-Download the archive for your operating system and architecture from the
-[GitHub Releases](https://github.com/MohamedElashri/agrep/releases) page, extract
+No release tag has been published yet. After the first release, download the
+archive for your operating system and architecture from
+[GitHub Releases](https://github.com/MohamedElashri/agrep/releases), extract
 it, and place `agrep` somewhere on your `PATH`.
+
+See [distribution status and release steps](docs/DISTRIBUTION.md) for
+GoReleaser, Homebrew, AUR, and versioned `go install` instructions.
 
 From a checkout:
 
@@ -228,6 +232,11 @@ go get github.com/MohamedElashri/agrep/arabic
 
 ## Development
 
+The [normalization playground](docs/PLAYGROUND.md) can be built and previewed
+locally. Phase 11's [conformance corpus](testdata/corpus/SOURCES.md) and
+[reproducible benchmarks](docs/BENCHMARKS.md) document expected behavior and
+measured performance.
+
 Development and CI use Go 1.27.1. The only runtime module dependency is
 `golang.org/x/text`, currently v0.42.0.
 
@@ -274,26 +283,6 @@ include a same-fixture `rg --files` comparison when ripgrep is installed:
 ```sh
 go test -run '^$' -bench . -benchmem ./...
 ```
-
-## Releases
-
-Releases are built and published by GitHub Actions from semantic version tags.
-Each release contains `tar.gz` archives for Linux, macOS, FreeBSD, OpenBSD, and
-NetBSD on amd64 and arm64, plus DragonFly BSD on amd64. The archives include the
-binary, README, and license; `checksums.txt` contains their SHA-256 checksums.
-
-To publish a release, first make sure the target commit is on the default branch
-and its CI checks pass. Then create and push an annotated tag:
-
-```sh
-git tag -a v1.2.3 -m "agrep v1.2.3"
-git push origin v1.2.3
-```
-
-Tags must follow SemVer, such as `v1.2.3` or `v1.2.3-rc.1`. A prerelease tag
-creates a GitHub prerelease. GoReleaser generates release notes from commits
-since the previous tag and embeds the version without the leading `v` in the
-binary; verify it with `agrep --version`.
 
 ## LICENSE
 
