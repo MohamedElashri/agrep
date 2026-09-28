@@ -1,6 +1,7 @@
 package match
 
 import (
+	"bytes"
 	"fmt"
 	"sort"
 	"strings"
@@ -69,23 +70,33 @@ func NewLiterals(queries []string, p arabic.Profile, ignoreCase bool) (Matcher, 
 		keys = append(keys, key)
 	}
 
+	stable := stableRawKeys(keys, queries, p, ignoreCase)
+	stableBytes := make([][]byte, len(stable))
+	for i, key := range stable {
+		stableBytes[i] = []byte(key)
+	}
+	anchors := rawRejectionAnchors(keys, p, ignoreCase)
 	return &literalMatcher{
-		queries:    append([]string(nil), queries...),
-		keys:       keys,
-		stableKeys: stableRawKeys(keys, queries, p, ignoreCase),
-		rawAnchors: rawRejectionAnchors(keys, p, ignoreCase),
-		profile:    p,
-		ignoreCase: ignoreCase,
+		queries:     append([]string(nil), queries...),
+		keys:        keys,
+		stableKeys:  stable,
+		stableBytes: stableBytes,
+		rawAnchors:  anchors,
+		anchorBytes: []byte(anchors),
+		profile:     p,
+		ignoreCase:  ignoreCase,
 	}, nil
 }
 
 type literalMatcher struct {
-	queries    []string // original, unnormalized patterns
-	keys       []string // normalized comparison keys; guaranteed non-empty
-	stableKeys []string // keys whose raw occurrence survives normalization
-	rawAnchors string   // necessary raw characters, one per key; empty disables rejection
-	profile    arabic.Profile
-	ignoreCase bool
+	queries     []string // original, unnormalized patterns
+	keys        []string // normalized comparison keys; guaranteed non-empty
+	stableKeys  []string // keys whose raw occurrence survives normalization
+	stableBytes [][]byte // byte form of stableKeys for scanning raw lines
+	rawAnchors  string   // necessary raw characters, one per key; empty disables rejection
+	anchorBytes []byte   // byte form of rawAnchors for the single-anchor fast path
+	profile     arabic.Profile
+	ignoreCase  bool
 }
 
 func (m *literalMatcher) String() string          { return strings.Join(m.queries, " | ") }
@@ -96,6 +107,16 @@ func (m *literalMatcher) Profile() arabic.Profile { return m.profile }
 func (m *literalMatcher) MatchesStableRaw(line string) bool {
 	for _, key := range m.stableKeys {
 		if strings.Contains(line, key) {
+			return true
+		}
+	}
+	return false
+}
+
+// MatchesStableRawBytes is the allocation-free raw-line form used by scan.
+func (m *literalMatcher) MatchesStableRawBytes(line []byte) bool {
+	for _, key := range m.stableBytes {
+		if bytes.Contains(line, key) {
 			return true
 		}
 	}
@@ -148,6 +169,21 @@ func (m *literalMatcher) CannotMatchRaw(line string) bool {
 		return false
 	}
 	return strings.IndexByte(line, 0xef) < 0
+}
+
+// CannotMatchRawBytes applies the same proof without copying a raw line.
+func (m *literalMatcher) CannotMatchRawBytes(line []byte) bool {
+	if m.rawAnchors == "" {
+		return false
+	}
+	if len(m.anchorBytes) == 2 {
+		if bytes.Contains(line, m.anchorBytes) {
+			return false
+		}
+	} else if bytes.IndexAny(line, m.rawAnchors) >= 0 {
+		return false
+	}
+	return bytes.IndexByte(line, 0xef) < 0
 }
 
 func stableRawKeys(keys, queries []string, p arabic.Profile, ignoreCase bool) []string {

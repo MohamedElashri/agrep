@@ -33,6 +33,24 @@ func BenchmarkSearchMapped(b *testing.B) {
 	benchmarkSearch(b, Options{MapSpans: true})
 }
 
+func BenchmarkSearchPlain(b *testing.B) {
+	line := "أعلنت المدينة افتتاح مكتبة جديدة.\n"
+	var fixture strings.Builder
+	for fixture.Len() < 10*1024*1024 {
+		fixture.WriteString(line)
+	}
+	benchmarkSearchQuery(b, fixture.String(), "مكتبة", true)
+}
+
+func BenchmarkSearchPlainSummary(b *testing.B) {
+	line := "أعلنت المدينة افتتاح مكتبة جديدة.\n"
+	var fixture strings.Builder
+	for fixture.Len() < 10*1024*1024 {
+		fixture.WriteString(line)
+	}
+	benchmarkSearchQueryWithOptions(b, fixture.String(), "مكتبة", true, Options{OmitText: true})
+}
+
 func BenchmarkSearchMiss(b *testing.B) {
 	benchmarkSearchQuery(b, benchFixture(10*1024*1024), "غيرموجود", false)
 }
@@ -50,12 +68,16 @@ func BenchmarkSearchSparseHit(b *testing.B) {
 }
 
 func benchmarkSearchQuery(b *testing.B, fixture, query string, wantFound bool) {
+	benchmarkSearchQueryWithOptions(b, fixture, query, wantFound, Options{})
+}
+
+func benchmarkSearchQueryWithOptions(b *testing.B, fixture, query string, wantFound bool, opts Options) {
 	m := mustLiteral(b, query)
 	b.SetBytes(int64(len(fixture)))
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		found, err := Search(strings.NewReader(fixture), m, Options{}, func(Match) error { return nil })
+		found, err := Search(strings.NewReader(fixture), m, opts, func(Match) error { return nil })
 		if err != nil {
 			b.Fatalf("Search: %v", err)
 		}

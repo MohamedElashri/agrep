@@ -41,6 +41,8 @@ def main():
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--phase2-cases", action="store_true",
                         help="also measure varied misses and long-line hits")
+    parser.add_argument("--phase3-cases", action="store_true",
+                        help="also measure empty-file startup and filename summary modes")
     parser.add_argument("--check-corpus", action="store_true",
                         help="compare full CLI output on every corpus case")
     args = parser.parse_args()
@@ -121,6 +123,16 @@ def main():
             ("long_lines", long_lines, ["-c", "مكتبة"], 0, long_lines.lines),
         ))
         extra_fixtures = [(varied, varied_sources), (long_lines, ("msa.txt",))]
+    if args.phase3_cases:
+        empty_path = fixture_dir / "empty.txt"
+        empty_path.write_bytes(b"")
+        empty = Fixture("empty startup input", empty_path, 0, 0)
+        cases.extend((
+            ("startup_empty", empty, ["-c", "مكتبة"], 1, None),
+            ("files_with_match", msa, ["-l", "مكتبة"], 0, None),
+            ("files_without_match", msa, ["-L", "غيرموجود"], 0, None),
+        ))
+        extra_fixtures.append((empty, ()))
     report = []
     for name, source, options, expected_exit, expected_lines in cases:
         commands = {label: [str(binary), *options, str(source.path)]
@@ -144,6 +156,9 @@ def main():
                     raise RuntimeError(f"{name}: unexpected JSON records or spans")
             elif int(output.strip()) != expected_lines:
                 raise RuntimeError(f"{name}: selected-line count differs from fixture")
+        elif name in ("files_with_match", "files_without_match"):
+            if output != (str(source.path) + "\n").encode():
+                raise RuntimeError(f"{name}: unexpected filename output")
         elif output.strip() != b"0":
             raise RuntimeError(f"{name}: miss count is not zero")
 
@@ -199,9 +214,11 @@ def main():
              "lines": source.lines, "sha256": sha256(source.path),
              "sources": {name: sha256(CORPUS / name) for name in names},
              "generation": ("round-robin source lines with unique numeric suffix"
-                            if args.phase2_cases and source is extra_fixtures[0][0]
+                            if source.name == "varied unique corpus lines"
                             else "64 KiB line repeated"
-                            if args.phase2_cases and source is extra_fixtures[1][0]
+                            if source.name == "64 KiB lines"
+                            else "empty file"
+                            if source.name == "empty startup input"
                             else "repeat source bytes")}
             for source, names in [(msa, ("msa.txt",)), (quran, ("quran.txt",)),
                                   *extra_fixtures]

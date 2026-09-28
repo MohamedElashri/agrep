@@ -179,6 +179,29 @@ func TestSearchRejectsNegativeContext(t *testing.T) {
 	}
 }
 
+func TestSearchOmitText(t *testing.T) {
+	m := mustLiteral(t, "غ")
+	var got []Match
+	found, err := Search(strings.NewReader("سطر\nغابة\nآخر\n"), m,
+		Options{OmitText: true, InvertMatch: true}, func(mt Match) error {
+			got = append(got, mt)
+			return nil
+		})
+	if err != nil || !found || len(got) != 2 || got[0].Line != 1 || got[1].Line != 3 ||
+		got[0].Text != "" || got[1].Text != "" {
+		t.Fatalf("summary selection changed: found=%v, matches=%+v, err=%v", found, got, err)
+	}
+	for _, opts := range []Options{
+		{OmitText: true, BeforeContext: 1},
+		{OmitText: true, AfterContext: 1},
+		{OmitText: true, MapSpans: true},
+	} {
+		if _, err := Search(strings.NewReader("غابة\n"), m, opts, func(Match) error { return nil }); err == nil {
+			t.Fatalf("accepted incompatible options: %+v", opts)
+		}
+	}
+}
+
 func TestSearchMapsSpansToOriginalText(t *testing.T) {
 	m := mustLiteral(t, "مد")
 	input := "مُدُ next\n"

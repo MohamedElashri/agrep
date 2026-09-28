@@ -106,7 +106,10 @@ func FuzzRawRejectionImpliesNoNormalizedMatch(f *testing.F) {
 			return
 		}
 		literal := m.(*literalMatcher)
-		if literal.CannotMatchRaw(line) && literal.Matches(p.Normalize(line)) {
+		if got, want := literal.CannotMatchRawBytes([]byte(line)), literal.CannotMatchRaw(line); got != want {
+			t.Fatalf("byte rejection differs from string rejection: got %v, want %v, line %q", got, want, line)
+		}
+		if literal.CannotMatchRawBytes([]byte(line)) && literal.Matches(p.Normalize(line)) {
 			t.Fatalf("rejected a match: queries=%q line=%q profile=%+v ignoreCase=%v", queries, line, p, ignoreCase)
 		}
 	})
@@ -165,7 +168,10 @@ func FuzzStableRawMatchImpliesNormalizedMatch(f *testing.F) {
 			return
 		}
 		literal := m.(*literalMatcher)
-		if literal.MatchesStableRaw(line) && !literal.Matches(profile.Normalize(line)) {
+		if got, want := literal.MatchesStableRawBytes([]byte(line)), literal.MatchesStableRaw(line); got != want {
+			t.Fatalf("byte positive differs from string positive: got %v, want %v, line %q", got, want, line)
+		}
+		if literal.MatchesStableRawBytes([]byte(line)) && !literal.Matches(profile.Normalize(line)) {
 			t.Fatalf("raw positive was false after normalization: query %q, line %q, profile %+v", query, line, profile)
 		}
 	})

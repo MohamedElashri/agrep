@@ -434,6 +434,7 @@ func searchOne(input inputSpec, stdin io.Reader, output io.Writer, matcher match
 		InvertMatch:  opts.invertMatch,
 		WordRegexp:   opts.wordRegexp,
 		MapSpans:     contextLines && (opts.jsonOutput || opts.onlyMatching || highlight),
+		OmitText:     !contextLines,
 	}
 	if contextLines {
 		searchOpts.BeforeContext = opts.beforeContext
