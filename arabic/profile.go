@@ -58,6 +58,11 @@ func tashkilScopeMatches(scope TashkilScope, r rune) bool {
 		}
 		return false
 	default: // TashkilAllMn
+		// Most Arabic letters fall in this starter range. Avoid a Unicode
+		// table lookup for each one while retaining the general Mn fallback.
+		if r < 0x0300 || (r >= 0x0620 && r <= 0x064A) {
+			return false
+		}
 		return unicode.Is(unicode.Mn, r)
 	}
 }
@@ -326,10 +331,9 @@ func (p Profile) Normalize(s string) string {
 	}
 	s = foldLanguagePrecomposed(s, p.Languages)
 
-	decomposed := s
-	if !norm.NFD.IsNormalString(s) {
-		decomposed = norm.NFD.String(s)
-	}
+	// String already returns s unchanged when it is in NFD. Calling
+	// IsNormalString first repeats the same scan on decomposable input.
+	decomposed := norm.NFD.String(s)
 
 	var b strings.Builder
 	changed := false
@@ -417,7 +421,7 @@ func (p Profile) Normalize(s string) string {
 		switch {
 		case !drop && (canonicalOut == 'ا' || canonicalOut == 'و' || canonicalOut == 'ي'):
 			nextBase = canonicalOut
-		case drop || unicode.Is(unicode.Mn, r):
+		case lastBase != 0 && (drop || unicode.Is(unicode.Mn, r)):
 			nextBase = lastBase
 		}
 		lastBase = nextBase
@@ -453,11 +457,7 @@ func (p Profile) Normalize(s string) string {
 	// Re-normalizing here is what makes Normalize(Normalize(x)) == Normalize(x):
 	// without it, a second call's own leading NFD check would silently
 	// re-sort what this call already returned.
-	out := b.String()
-	if !norm.NFD.IsNormalString(out) {
-		out = norm.NFD.String(out)
-	}
-	return out
+	return norm.NFD.String(b.String())
 }
 
 // transformRune mirrors Normalize's deliberately inlined hot loop for mapped
@@ -543,7 +543,7 @@ func (p Profile) transformRune(r, lastBase rune) (out rune, drop bool, nextBase 
 	switch {
 	case !drop && (canonicalOut == 'ا' || canonicalOut == 'و' || canonicalOut == 'ي'):
 		nextBase = canonicalOut
-	case drop || unicode.Is(unicode.Mn, r):
+	case lastBase != 0 && (drop || unicode.Is(unicode.Mn, r)):
 		nextBase = lastBase
 	}
 	return out, drop, nextBase

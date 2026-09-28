@@ -2,9 +2,8 @@
 
 ## Current priorities
 
-- Profile normalization on voweled, unmatched, and mapped-output workloads;
-  the [benchmark suite](BENCHMARKS.md) measures these separately from exact
-  literal hits.
+- Profile literal misses, voweled text, and mapped output with the
+  [benchmark suite](BENCHMARKS.md) before changing search hot paths.
 - Run the graphical terminal checks in [TERMINALS.md](TERMINALS.md) on real
   xterm, kitty, Alacritty, and tmux sessions.
 - Extend the licensed [conformance corpus](../testdata/corpus/SOURCES.md)
@@ -12,6 +11,15 @@
 - Evaluate root and stem search against a labeled dataset before deciding
   whether to expose it as a CLI mode. Positional output would need mapping
   back to original text.
+
+## Agent usage
+
+The repository includes an `agrep-search` skill for
+[Codex](../.agents/skills/agrep-search/SKILL.md) and
+[Claude Code](../.claude/skills/agrep-search/SKILL.md). Other harnesses can load
+either `SKILL.md` directly. Future work: a bounded-result CLI option that never
+truncates JSON records, a stable JSON schema, and task checks for file
+discovery, cross-spelling matches, no-match exits, and span extraction.
 
 ## Build and test
 

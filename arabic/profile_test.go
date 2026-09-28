@@ -2,8 +2,19 @@ package arabic
 
 import (
 	"testing"
+	"unicode"
 	"unicode/utf8"
 )
+
+func TestTashkilFastPathContainsNoNonspacingMarks(t *testing.T) {
+	for _, bounds := range [][2]rune{{0, 0x0300}, {0x0620, 0x064B}} {
+		for r := bounds[0]; r < bounds[1]; r++ {
+			if unicode.Is(unicode.Mn, r) {
+				t.Fatalf("U+%04X is a nonspacing mark inside the fast path", r)
+			}
+		}
+	}
+}
 
 func TestProfileValidate(t *testing.T) {
 	for name, p := range map[string]Profile{
@@ -22,6 +33,15 @@ func TestProfileValidate(t *testing.T) {
 	}
 	if err := (Profile{Languages: LanguageSet(0x80)}).Validate(); err == nil {
 		t.Fatal("Validate() with unknown language bits returned nil")
+	}
+}
+
+func TestNormalizeReordersMarksAfterDroppedStarter(t *testing.T) {
+	p := Profile{StripTatweel: true}
+	input := "a\u0315ـ\u0300"
+	want := "a\u0300\u0315"
+	if got := p.Normalize(input); got != want {
+		t.Fatalf("Normalize(%q) = %q; want %q", input, got, want)
 	}
 }
 

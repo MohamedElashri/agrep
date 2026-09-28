@@ -3,4 +3,6 @@
 __pycache__/
 *.py[cod]
 plan*
+/docs/OPTIMIZATION_PLAN.md
+/docs/optimization-evidence/
 /agrep
