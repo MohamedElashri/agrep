@@ -17,7 +17,9 @@ part of the project's MIT-licensed test suite.
 | `languages.txt` | Persian/Arabic mixed orthography, Urdu and Uyghur distinctions, and Persian ZWNJ; original test text. |
 | `distinct.txt` | Minimal Urdu, Pashto, Sorani, and Uyghur letters that must remain distinct; constructed test tokens. |
 | `spans.txt` | Tatweel/mark, full case-fold expansion, and zero-length regex boundary cases; constructed test tokens. |
+| `varied.txt` | Original mixed Arabic and Persian lines with sparse and repeated hits, vowel marks, presentation forms, digits, an empty line, and a line longer than 4 KiB. The long line repeats `مدخل قصير ` 260 times. |
 | `cp1256.bin`, `iso88596.bin`, `utf16le.bin`, `utf16be.bin` | Encoded forms of original short Arabic test lines. |
+| `varied-cp1256.bin`, `varied-utf16le.bin` | CP1256 form of four short lines from `varied.txt`; BOM-marked UTF-16LE form of the complete varied file. |
 
 `cases.json` is the hand-reviewed oracle: each case records the command options,
 selected line numbers, emitted text, and expected half-open UTF-8 byte ranges.

@@ -25,7 +25,7 @@ def invoke(binary, args, *, capture=False):
     )
 
 
-def write_trees(fixture_dir):
+def write_trees(fixture_dir, phase6_cases=False):
     small = fixture_dir / "many-small"
     large = fixture_dir / "few-large"
     errors = fixture_dir / "errors"
@@ -71,7 +71,18 @@ def write_trees(fixture_dir):
         actual = {path for path in root.rglob("*") if path.is_file()}
         if actual != expected:
             raise RuntimeError(f"unexpected files under {root}; use a clean fixture directory")
-    return small, large, errors, small_files, large_files
+    extra = []
+    if phase6_cases:
+        late = fixture_dir / "few-large-late"
+        absent = fixture_dir / "few-large-absent"
+        late.mkdir(parents=True, exist_ok=True)
+        absent.mkdir(parents=True, exist_ok=True)
+        for index in range(4):
+            name = f"part-{index:02d}.txt"
+            (late / name).write_bytes(miss * ((4 << 20) // len(miss)) + source)
+            (absent / name).write_bytes(miss * ((4 << 20) // len(miss)))
+        extra = [late, absent]
+    return small, large, errors, small_files, large_files, extra
 
 
 def tree_record(root):
@@ -107,6 +118,8 @@ def main():
     parser.add_argument("--fixture-dir", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--runs", type=int, default=7)
+    parser.add_argument("--phase6-cases", action="store_true",
+                        help="also measure late hits and absent matches in large files")
     args = parser.parse_args()
     if args.runs < 1:
         parser.error("--runs must be positive")
@@ -119,7 +132,8 @@ def main():
             parser.error(f"binary does not exist: {binary}")
 
     fixture_dir = args.fixture_dir.resolve()
-    small, large, errors, small_files, large_files = write_trees(fixture_dir)
+    small, large, errors, small_files, large_files, extra_trees = write_trees(
+        fixture_dir, args.phase6_cases)
     small_lines = [str(path) + "\n" for path in small_files]
     large_lines = [str(path) + "\n" for path in large_files]
     cases = [
@@ -138,6 +152,16 @@ def main():
          ["-r", "--threads=4", "--include=*.txt", "--exclude=group-00/part-*.txt",
           "-l", "اعلنت", str(small)], 0, "".join(small_lines[100:]).encode()),
     ]
+    if args.phase6_cases:
+        for name, root, option in (
+            ("few_large_late_hit", extra_trees[0], "-l"),
+            ("few_large_absent", extra_trees[1], "-L"),
+        ):
+            expected = "".join(str(root / f"part-{index:02d}.txt") + "\n"
+                               for index in range(4)).encode()
+            cases.append((name, root,
+                          ["-r", "--threads=4", option, "اعلنت", str(root)],
+                          0, expected))
 
     # Compare thread counts, ignore behavior, and late errors before timing.
     checks = []
@@ -217,7 +241,8 @@ def main():
                     "after": {"path": str(args.after_patch.resolve()),
                               "sha256": sha256(args.after_patch.resolve())}
                     if args.after_patch else None},
-        "fixtures": {root.name: tree_record(root) for root in (small, large, errors)},
+        "fixtures": {root.name: tree_record(root)
+                     for root in (small, large, errors, *extra_trees)},
         "source_sha256": sha256(CORPUS / "msa.txt"),
         "checks": checked, "cases": report,
     }

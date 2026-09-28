@@ -28,9 +28,12 @@ class Fixture:
 
 
 def run(command, expected=(0,), capture=False):
+    env = os.environ.copy()
+    env["LC_ALL"] = "C.UTF-8"
     result = subprocess.run(
         command,
         cwd=ROOT,
+        env=env,
         stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
         stderr=subprocess.PIPE,
         check=False,
@@ -70,6 +73,19 @@ def fixture(path, name, source, target_bytes):
         for _ in range(repeats):
             output.write(source)
     return Fixture(name, path, path.stat().st_size, source.count(b"\n") * repeats)
+
+
+def varied_fixture(path, target_bytes):
+    """Cycle original lines with unique suffixes, including a >4 KiB line."""
+    lines = [line for line in (CORPUS / "varied.txt").read_bytes().splitlines() if line]
+    size = count = 0
+    with path.open("wb") as output:
+        while size < target_bytes:
+            line = lines[count % len(lines)] + b" #" + str(count).encode() + b"\n"
+            output.write(line)
+            size += len(line)
+            count += 1
+    return Fixture("varied unique Arabic/Persian lines", path, size, count)
 
 
 def measure(commands, runs, expected=(0,)):
@@ -115,6 +131,7 @@ def add_case(report, name, description, input_fixture, commands, runs,
         "name": name,
         "description": description,
         "fixture": input_fixture.name,
+        "fixture_sha256": sha256(input_fixture.path) if input_fixture.path.is_file() else None,
         "bytes": input_fixture.bytes,
         "lines": input_fixture.lines,
         "same_result_across_tools": same_result,
@@ -131,6 +148,7 @@ def main():
     parser.add_argument("--size-mib", type=int, default=16)
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--agrep", type=Path, help="use an existing agrep binary")
+    parser.add_argument("--revision", help="source revision of the measured agrep binary")
     parser.add_argument("--output", type=Path, help="write JSON results")
     args = parser.parse_args()
     if args.size_mib <= 0 or args.runs <= 0:
@@ -152,6 +170,7 @@ def main():
         long_source = (CORPUS / "msa.txt").read_bytes().rstrip(b"\n")
         long_line = long_source * ((64 << 10) // len(long_source)) + b"\n"
         long_lines = fixture(temp / "long.txt", "64 KiB lines", long_line, target)
+        varied = varied_fixture(temp / "varied.txt", target)
         tree = temp / "tree"
         tree.mkdir()
         tree_size = max(1, target // 32)
@@ -224,6 +243,38 @@ def main():
         add_case(report, "long_lines", "64 KiB logical lines", long_lines,
                  long_counts, args.runs, long_lines.lines, True, count_commands=long_counts)
 
+        varied_exact = {
+            "agrep": [str(binary), "-c", "فارسی", str(varied.path)],
+            "grep": ["grep", "-Fc", "فارسی", str(varied.path)],
+            "ripgrep": ["rg", "-Fc", "فارسی", str(varied.path)],
+        }
+        add_case(report, "varied_exact_count", "Exact sparse hit on unique mixed lines",
+                 varied, varied_exact, args.runs, same_result=True,
+                 count_commands=varied_exact)
+
+        varied_miss = {
+            "agrep": [str(binary), "-c", "غيرموجود", str(varied.path)],
+            "grep": ["grep", "-Fc", "غيرموجود", str(varied.path)],
+            "ripgrep": ["rg", "-Fc", "غيرموجود", str(varied.path)],
+        }
+        add_case(report, "varied_literal_miss", "No hit on unique mixed lines",
+                 varied, varied_miss, args.runs, 0, True,
+                 count_commands=varied_miss, expected_exit=(0, 1))
+
+        varied_count = [str(binary), "-c", "مكتبه", str(varied.path)]
+        varied_selected = count(varied_count)
+        raw_varied = {
+            "grep": count(["grep", "-Fc", "مكتبه", str(varied.path)]),
+            "ripgrep": count(["rg", "-Fc", "مكتبه", str(varied.path)]),
+        }
+        add_case(report, "varied_normalized_count", "Sparse normalized hits on mixed lines",
+                 varied, {"agrep": varied_count}, args.runs, varied_selected,
+                 raw_reference=raw_varied, count_commands={"agrep": varied_count})
+        varied_json = [str(binary), "--json", "مكتبه", str(varied.path)]
+        add_case(report, "varied_json_spans", "Mapped sparse spans on mixed lines",
+                 varied, {"agrep": varied_json}, args.runs,
+                 output_lines=varied_selected)
+
         tree_commands = {
             "agrep": [str(binary), "-r", "-l", "مكتبة", str(tree)],
             "grep": ["grep", "-rlF", "مكتبة", str(tree)],
@@ -245,9 +296,11 @@ def main():
             "grep_version": run(["grep", "--version"], capture=True).decode().splitlines()[0],
             "ripgrep_version": run(["rg", "--version"], capture=True).decode().splitlines()[0],
             "runs": args.runs,
+            "locale": "C.UTF-8",
+            "agrep_revision": args.revision or run(["git", "rev-parse", "HEAD"], capture=True).decode().strip(),
             "target_size_mib": args.size_mib,
-            "fixture_sources": [str((CORPUS / name).relative_to(ROOT)) for name in ("msa.txt", "quran.txt", "ocr.txt")],
-            "fixture_source_sha256": {name: sha256(CORPUS / name) for name in ("msa.txt", "quran.txt", "ocr.txt")},
+            "fixture_sources": [str((CORPUS / name).relative_to(ROOT)) for name in ("msa.txt", "quran.txt", "ocr.txt", "varied.txt")],
+            "fixture_source_sha256": {name: sha256(CORPUS / name) for name in ("msa.txt", "quran.txt", "ocr.txt", "varied.txt")},
             "agrep_binary_sha256": sha256(binary),
             "cases": report,
         }

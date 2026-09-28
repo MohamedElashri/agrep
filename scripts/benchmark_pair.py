@@ -12,7 +12,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from benchmark import CORPUS, ROOT, Fixture, cpu_model, fixture, sha256
+from benchmark import CORPUS, ROOT, Fixture, cpu_model, fixture, sha256, varied_fixture
 
 
 def invoke(command, *, capture=False):
@@ -45,6 +45,8 @@ def main():
                         help="also measure empty-file startup and filename summary modes")
     parser.add_argument("--phase4-cases", action="store_true",
                         help="also measure mapped misses, sparse hits, and word boundaries")
+    parser.add_argument("--phase6-cases", action="store_true",
+                        help="also measure unique mixed-length corpus lines")
     parser.add_argument("--check-corpus", action="store_true",
                         help="compare full CLI output on every corpus case")
     args = parser.parse_args()
@@ -151,6 +153,19 @@ def main():
             ("word_miss", msa, ["-w", "-c", "غيرموجود"], 1, None),
         ))
         extra_fixtures.append((sparse, ("msa.txt",)))
+    if args.phase6_cases:
+        mixed = varied_fixture(fixture_dir / "varied-mixed.txt", size)
+        exact = int(invoke([str(binaries["before"]), "-c", "فارسی", str(mixed.path)],
+                           capture=True).stdout)
+        normalized = int(invoke([str(binaries["before"]), "-c", "مكتبه", str(mixed.path)],
+                                capture=True).stdout)
+        cases.extend((
+            ("varied_new_exact", mixed, ["-c", "فارسی"], 0, exact),
+            ("varied_new_miss", mixed, ["-c", "غيرموجود"], 1, None),
+            ("varied_new_normalized", mixed, ["-c", "مكتبه"], 0, normalized),
+            ("json_varied_new_spans", mixed, ["--json", "مكتبه"], 0, normalized),
+        ))
+        extra_fixtures.append((mixed, ("varied.txt",)))
     report = []
     for name, source, options, expected_exit, expected_lines in cases:
         commands = {label: [str(binary), *options, str(source.path)]
@@ -236,6 +251,8 @@ def main():
              "sources": {name: sha256(CORPUS / name) for name in names},
              "generation": ("round-robin source lines with unique numeric suffix"
                             if source.name == "varied unique corpus lines"
+                            else "cycle varied.txt nonempty lines with unique numeric suffix"
+                            if source.name == "varied unique Arabic/Persian lines"
                             else "64 KiB line repeated"
                             if source.name == "64 KiB lines"
                             else "empty file"
