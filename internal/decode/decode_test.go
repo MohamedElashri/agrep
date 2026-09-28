@@ -50,6 +50,28 @@ func TestNewReaderAutoHandlesUTF8RuneAcrossSniffBoundary(t *testing.T) {
 	}
 }
 
+func TestNewReaderAutoNeverReturnsMalformedUTF8(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		raw  []byte
+	}{
+		{"truncated at EOF", []byte{0xdf}},
+		{"malformed after UTF-8 BOM", []byte{0xef, 0xbb, 0xbf, 0xdf}},
+		{"malformed after sniff window", append(bytes.Repeat([]byte("a"), sniffBytes), 0xdf)},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			reader, _, err := NewReader(bytes.NewReader(tt.raw), Auto)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := io.ReadAll(reader)
+			if err == nil && !utf8.Valid(got) {
+				t.Fatalf("auto decoding returned invalid UTF-8: %x", got)
+			}
+		})
+	}
+}
+
 func FuzzAutoDecodeValidUTF8(f *testing.F) {
 	f.Add([]byte("هذه مدينة\n"))
 	f.Add([]byte{0xDF, 0xD1, 0xC8, 0xED})

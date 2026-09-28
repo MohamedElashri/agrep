@@ -85,13 +85,15 @@ func NewReader(r io.Reader, requested Encoding) (io.Reader, Encoding, error) {
 	switch {
 	case bytes.HasPrefix(sample, []byte{0xEF, 0xBB, 0xBF}):
 		_, _ = buffered.Discard(3)
-		return buffered, UTF8, nil
+		return transform.NewReader(buffered, unicodeencoding.UTF8.NewDecoder()), UTF8, nil
 	case bytes.HasPrefix(sample, []byte{0xFF, 0xFE}):
 		return readerFor(buffered, UTF16LE), UTF16LE, nil
 	case bytes.HasPrefix(sample, []byte{0xFE, 0xFF}):
 		return readerFor(buffered, UTF16BE), UTF16BE, nil
-	case plausibleUTF8(sample):
-		return buffered, UTF8, nil
+	case plausibleUTF8(sample, len(sample) == sniffBytes):
+		// The sniff only covers a prefix. Validate/repair later malformed
+		// sequences too, so Auto always produces UTF-8 on a successful read.
+		return transform.NewReader(buffered, unicodeencoding.UTF8.NewDecoder()), UTF8, nil
 	}
 
 	best := Windows1256
@@ -105,9 +107,12 @@ func NewReader(r io.Reader, requested Encoding) (io.Reader, Encoding, error) {
 	return readerFor(buffered, best), best, nil
 }
 
-func plausibleUTF8(sample []byte) bool {
+func plausibleUTF8(sample []byte, allowIncompleteSuffix bool) bool {
 	validPrefix := sample
 	if !utf8.Valid(validPrefix) {
+		if !allowIncompleteSuffix {
+			return false
+		}
 		validPrefix = nil
 		for suffixLength := 1; suffixLength < utf8.UTFMax && suffixLength <= len(sample); suffixLength++ {
 			prefix := sample[:len(sample)-suffixLength]
