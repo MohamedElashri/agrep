@@ -57,6 +57,7 @@ The matching line is displayed with its original spelling. JSON `spans` and
   [encodings and transliteration](docs/INPUT.md)
 - [Terminal color](docs/TERMINALS.md) and [normalization playground](docs/PLAYGROUND.md)
 - [Benchmarks](docs/BENCHMARKS.md) and [development](docs/DEVELOPMENT.md)
+- [Agent search skill for Codex](.agents/skills/agrep-search/SKILL.md) and [Claude Code](.claude/skills/agrep-search/SKILL.md)
 
 ## Go packages
 

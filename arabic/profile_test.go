@@ -2,8 +2,19 @@ package arabic
 
 import (
 	"testing"
+	"unicode"
 	"unicode/utf8"
 )
+
+func TestTashkilFastPathContainsNoNonspacingMarks(t *testing.T) {
+	for _, bounds := range [][2]rune{{0, 0x0300}, {0x0620, 0x064B}} {
+		for r := bounds[0]; r < bounds[1]; r++ {
+			if unicode.Is(unicode.Mn, r) {
+				t.Fatalf("U+%04X is a nonspacing mark inside the fast path", r)
+			}
+		}
+	}
+}
 
 func TestProfileValidate(t *testing.T) {
 	for name, p := range map[string]Profile{
@@ -25,8 +36,17 @@ func TestProfileValidate(t *testing.T) {
 	}
 }
 
-// TestNormalizePackageFuncIsProfileSearch locks in Phase 3's work item 2:
-// the package-level Normalize is exactly ProfileSearch.Normalize.
+func TestNormalizeReordersMarksAfterDroppedStarter(t *testing.T) {
+	p := Profile{StripTatweel: true}
+	input := "a\u0315ـ\u0300"
+	want := "a\u0300\u0315"
+	if got := p.Normalize(input); got != want {
+		t.Fatalf("Normalize(%q) = %q; want %q", input, got, want)
+	}
+}
+
+// TestNormalizePackageFuncIsProfileSearch verifies that the package-level
+// Normalize uses the default search profile.
 func TestNormalizePackageFuncIsProfileSearch(t *testing.T) {
 	for _, s := range []string{"", "أحمد", "café", "plain"} {
 		if got, want := Normalize(s), ProfileSearch.Normalize(s); got != want {
@@ -35,8 +55,7 @@ func TestNormalizePackageFuncIsProfileSearch(t *testing.T) {
 	}
 }
 
-// TestKeepHamzaPreservesDistinction is the direct regression test for the
-// interaction this phase had to get right: with FoldAlefHamza off, NFD
+// TestKeepHamzaPreservesDistinction checks that with FoldAlefHamza off, NFD
 // decomposition must not let a blanket StripTashkil silently re-merge أ and
 // ا by stripping the leftover combining hamza-above mark. See the Profile
 // doc comment.
@@ -181,7 +200,7 @@ func TestProfileCAMeL(t *testing.T) {
 }
 
 // profileBit indexes a Profile bool field for profileFromBits/bitsFromProfile.
-// Adding another boolean field in a later phase means adding one more constant
+// Adding another boolean field means adding one more constant
 // here and one more line in each of those two functions. Multi-valued
 // dimensions such as Languages get a separate fuzz
 // input, as FuzzLanguageNormalizeProperties demonstrates. An explicit,

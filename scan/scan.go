@@ -6,13 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"sync"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/MohamedElashri/agrep/arabic"
 	"github.com/MohamedElashri/agrep/match"
+	simdutf8 "github.com/segmentio/asm/utf8"
 )
 
 // ErrInvalidUTF8 identifies input that must be decoded before Search. The CLI
@@ -53,6 +53,13 @@ type Options struct {
 	// WordRegexp keeps only matches bounded by non-word runes in the original
 	// text. It implies mapped matching even when MapSpans is false.
 	WordRegexp bool
+	// OmitText leaves Match.Text empty for summary callers that need only
+	// selection. It cannot be combined with context or MapSpans.
+	OmitText bool
+	// ExistenceOnly emits at most the first selected line. It still reads and
+	// validates the rest of the input so later errors remain observable.
+	// It cannot be combined with context.
+	ExistenceOnly bool
 }
 
 var mappedIndexPool sync.Pool
@@ -61,11 +68,26 @@ const maxPooledIndexCapacity = 4 << 20 // 16 MiB of int32 storage
 
 // Search reads arbitrary-length logical lines from r without
 // bufio.Scanner's token ceiling, and reports every line whose normalized text
-// m selects, optionally inverted, plus requested context. It preserves the
-// original, unnormalized text of every emitted line.
+// m selects, optionally inverted, plus requested context. ExistenceOnly
+// emits the first selected line; OmitText omits original text from emissions.
 func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) error) (bool, error) {
 	if opts.BeforeContext < 0 || opts.AfterContext < 0 {
 		return false, errors.New("scan: context values must be non-negative")
+	}
+	if opts.OmitText && (opts.BeforeContext > 0 || opts.AfterContext > 0 || opts.MapSpans) {
+		return false, errors.New("scan: OmitText cannot be combined with context or MapSpans")
+	}
+	if opts.ExistenceOnly && (opts.BeforeContext > 0 || opts.AfterContext > 0) {
+		return false, errors.New("scan: ExistenceOnly cannot be combined with context")
+	}
+	if opts.OmitText && opts.MaxLineBytes == 0 && !opts.InvertMatch &&
+		!opts.WordRegexp && !opts.MapSpans && opts.BeforeContext == 0 && opts.AfterContext == 0 {
+		if negative, ok := m.(interface {
+			CannotMatchRawBytes([]byte) bool
+			FirstPossibleRawByteIndex([]byte) int
+		}); ok {
+			return searchSummary(r, m, opts, negative, onMatch)
+		}
 	}
 	reader := bufio.NewReader(r)
 	profile := m.Profile()
@@ -76,7 +98,9 @@ func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) erro
 	var lastEmitted int64
 	emitted := false
 	contextEnabled := opts.BeforeContext > 0 || opts.AfterContext > 0
-	rawPositive, hasRawPositive := m.(interface{ MatchesStableRaw(string) bool })
+	needsMapped := opts.WordRegexp || (opts.MapSpans && !opts.InvertMatch)
+	rawPositive, hasRawPositive := m.(interface{ MatchesStableRawBytes([]byte) bool })
+	rawNegative, hasRawNegative := m.(interface{ CannotMatchRawBytes([]byte) bool })
 
 	emit := func(mt Match, context bool) error {
 		mt.Context = context
@@ -90,7 +114,7 @@ func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) erro
 	}
 
 	for {
-		line, done, err := readLine(reader, opts.MaxLineBytes, lineNumber+1)
+		line, done, err := readLineBytes(reader, opts.MaxLineBytes, lineNumber+1)
 		if err != nil {
 			return false, err
 		}
@@ -99,14 +123,23 @@ func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) erro
 		}
 
 		lineNumber++
-		if !utf8.ValidString(line) {
+		if !simdutf8.Valid(line) {
 			return false, fmt.Errorf("%w on line %d", ErrInvalidUTF8, lineNumber)
+		}
+		if opts.ExistenceOnly && found {
+			continue
 		}
 
 		matched := false
 		var originalSpans []Span
-		needsMapped := opts.WordRegexp || (opts.MapSpans && !opts.InvertMatch)
-		if needsMapped {
+		var lineText string
+		if !needsMapped && hasRawPositive && rawPositive.MatchesStableRawBytes(line) {
+			matched = true
+		} else if hasRawNegative && rawNegative.CannotMatchRawBytes(line) {
+			// No literal can match, so a mapped index is unnecessary too.
+			// Keep normal selection, inversion, and context handling below.
+		} else if needsMapped {
+			lineText = string(line)
 			var scratch []int32
 			var indexBuffer *[]int32
 			if pooled := mappedIndexPool.Get(); pooled != nil {
@@ -115,14 +148,14 @@ func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) erro
 			} else {
 				indexBuffer = new([]int32)
 			}
-			normalized, idx := profile.NormalizeMappedInto(line, scratch)
+			normalized, idx := profile.NormalizeMappedInto(lineText, scratch)
 			normalizedSpans := m.FindAll(normalized)
 			for _, span := range normalizedSpans {
 				if span.Start < 0 || span.End < span.Start || span.End >= len(idx) {
 					continue
 				}
 				start, end := arabic.MapSpan(idx, span.Start, span.End)
-				if opts.WordRegexp && !wordBounded(line, start, end, profile.Languages) {
+				if opts.WordRegexp && !wordBounded(lineText, start, end, profile.Languages) {
 					continue
 				}
 				matched = true
@@ -138,19 +171,25 @@ func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) erro
 				mappedIndexPool.Put(indexBuffer)
 			}
 		} else {
-			if hasRawPositive && rawPositive.MatchesStableRaw(line) {
-				matched = true
+			lineText = string(line)
+			normalized := profile.Normalize(lineText)
+			if fast, ok := m.(interface{ Matches(string) bool }); ok {
+				matched = fast.Matches(normalized)
 			} else {
-				normalized := profile.Normalize(line)
-				if fast, ok := m.(interface{ Matches(string) bool }); ok {
-					matched = fast.Matches(normalized)
-				} else {
-					matched = len(m.FindAll(normalized)) > 0
-				}
+				matched = len(m.FindAll(normalized)) > 0
 			}
 		}
 		selected := matched != opts.InvertMatch
-		mt := Match{File: opts.File, Line: lineNumber, Text: line, Spans: originalSpans}
+		if !selected && afterRemaining == 0 && opts.BeforeContext == 0 {
+			continue
+		}
+		text := lineText
+		if opts.OmitText {
+			text = ""
+		} else if text == "" && len(line) > 0 {
+			text = string(line)
+		}
+		mt := Match{File: opts.File, Line: lineNumber, Text: text, Spans: originalSpans}
 		if selected {
 			found = true
 			for _, prior := range before {
@@ -211,52 +250,55 @@ func isWordRune(r rune, languages arabic.LanguageSet) bool {
 		unicode.IsLetter(r) || unicode.IsNumber(r) || unicode.IsMark(r)
 }
 
-// readLine assembles one logical line from ReadSlice fragments. When a limit
+// readLineBytes assembles one logical line from ReadSlice fragments. When a limit
 // is configured, it rejects oversized input incrementally instead of first
 // allocating the entire hostile line. done is true only for EOF with no data.
-func readLine(reader *bufio.Reader, maxBytes uint64, lineNumber int64) (line string, done bool, err error) {
+// The returned slice is valid until the reader's next read.
+func readLineBytes(reader *bufio.Reader, maxBytes uint64, lineNumber int64) (line []byte, done bool, err error) {
 	var buf bytes.Buffer
 	for {
 		fragment, readErr := reader.ReadSlice('\n')
 		switch {
 		case readErr == nil:
 			if buf.Len() == 0 {
-				line = trimLineEnding(string(fragment))
+				line = trimLineEndingBytes(fragment)
 			} else {
 				_, _ = buf.Write(fragment)
-				line = trimLineEnding(buf.String())
+				line = trimLineEndingBytes(buf.Bytes())
 			}
 		case errors.Is(readErr, bufio.ErrBufferFull):
 			_, _ = buf.Write(fragment)
 			if maxBytes > 0 && uint64(buf.Len()) > maxBytes {
-				return "", false, fmt.Errorf("line %d exceeds --max-line-bytes=%d", lineNumber, maxBytes)
+				return nil, false, fmt.Errorf("line %d exceeds --max-line-bytes=%d", lineNumber, maxBytes)
 			}
 			continue
 		case errors.Is(readErr, io.EOF):
 			if buf.Len() == 0 && len(fragment) == 0 {
-				return "", true, nil
+				return nil, true, nil
 			}
 			if buf.Len() == 0 {
-				line = string(fragment)
+				line = fragment
 			} else {
 				_, _ = buf.Write(fragment)
-				line = buf.String()
+				line = buf.Bytes()
 			}
 		default:
-			return "", false, readErr
+			return nil, false, readErr
 		}
 
 		if maxBytes > 0 && uint64(len(line)) > maxBytes {
-			return "", false, fmt.Errorf("line %d exceeds --max-line-bytes=%d", lineNumber, maxBytes)
+			return nil, false, fmt.Errorf("line %d exceeds --max-line-bytes=%d", lineNumber, maxBytes)
 		}
 		return line, false, nil
 	}
 }
 
-func trimLineEnding(line string) string {
-	if strings.HasSuffix(line, "\n") {
-		line = strings.TrimSuffix(line, "\n")
-		line = strings.TrimSuffix(line, "\r")
+func trimLineEndingBytes(line []byte) []byte {
+	if len(line) > 0 && line[len(line)-1] == '\n' {
+		line = line[:len(line)-1]
+		if len(line) > 0 && line[len(line)-1] == '\r' {
+			line = line[:len(line)-1]
+		}
 	}
 	return line
 }

@@ -9,12 +9,132 @@ import (
 	"github.com/MohamedElashri/agrep/arabic"
 )
 
+func TestRawRejectionAnchorSources(t *testing.T) {
+	// NFD and presentation expansion are the only stages that could create
+	// these letters without an identical raw rune. All presentation forms
+	// have an EF leading byte; a new Unicode decomposition would fail here.
+	p := arabic.Profile{FoldPresentation: true}
+	for r := rune(0); r <= utf8.MaxRune; r++ {
+		if r >= 0xd800 && r <= 0xdfff {
+			continue
+		}
+		source := string(r)
+		if strings.ContainsRune(rawRejectionAnchorRunes, r) {
+			continue
+		}
+		if got := p.Normalize(source); strings.ContainsAny(got, rawRejectionAnchorRunes) {
+			if source[0] != 0xef {
+				t.Fatalf("U+%04X normalizes to %q, introducing an anchor", r, got)
+			}
+			for _, anchor := range got {
+				if strings.ContainsRune(rawRejectionAnchorRunes, anchor) &&
+					!arabic.PresentationFormContains(r, anchor) {
+					t.Fatalf("U+%04X introduces %q without a presentation-form hint", r, anchor)
+				}
+			}
+		}
+	}
+}
+
+func TestRawRejection(t *testing.T) {
+	tests := []struct {
+		name, query, line string
+		profile           arabic.Profile
+		ignoreCase        bool
+		want              bool
+	}{
+		{"miss", "غيرموجود", "أعلنت المدينة افتتاح مكتبة", arabic.ProfileSearch, false, true},
+		{"raw hit", "غ", "غابة", arabic.ProfileSearch, false, false},
+		{"presentation hit", "غ", "ﻍ", arabic.ProfileSearch, false, false},
+		{"irrelevant presentation", "غيرموجود", "ﻻ يوجد كتاب", arabic.ProfileSearch, false, true},
+		{"presentation fold disabled", "غ", "ﻍ", arabic.Profile{FoldPresentation: false}, false, true},
+		{"rasm fallback", "غيرموجود", "كتاب", arabic.ProfileLoose, false, false},
+		{"case fold fallback", "غيرموجود", "كتاب", arabic.ProfileSearch, true, false},
+		{"no anchor fallback", "ا", "كتاب", arabic.ProfileSearch, false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m, err := NewLiterals([]string{tt.query}, tt.profile, tt.ignoreCase)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := m.(*literalMatcher).CannotMatchRaw(tt.line); got != tt.want {
+				t.Fatalf("CannotMatchRaw(%q) = %v; want %v", tt.line, got, tt.want)
+			}
+		})
+	}
+
+	m, err := NewLiterals([]string{"غيرموجود", "ثوب"}, arabic.ProfileSearch, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !m.(*literalMatcher).CannotMatchRaw("أعلنت المكتبة") {
+		t.Fatal("two impossible patterns were not rejected")
+	}
+	m, err = NewLiterals([]string{"غيرموجود", "ا"}, arabic.ProfileSearch, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.(*literalMatcher).CannotMatchRaw("أعلنت المكتبة") {
+		t.Fatal("pattern without a safe anchor was rejected")
+	}
+}
+
+func FuzzRawRejectionImpliesNoNormalizedMatch(f *testing.F) {
+	f.Add("غ", "ﻍ", "", uint16(1<<7), uint8(1), uint8(0), false)
+	f.Add("غيرموجود", "أعلنت المدينة", "ثوب", uint16(0x1fff), uint8(0x3f), uint8(1), false)
+	f.Add("كتاب", "کتاب", "غ", uint16(0x3fff), uint8(3), uint8(2), true)
+	f.Add("غيرموجود", "ﻻ يوجد كتاب", "", uint16(1<<7), uint8(1), uint8(0), false)
+	f.Fuzz(func(t *testing.T, first, line, second string, bits uint16, languages, scope uint8, ignoreCase bool) {
+		if !utf8.ValidString(line) {
+			return
+		}
+		has := func(bit uint) bool { return bits&(1<<bit) != 0 }
+		p := arabic.Profile{
+			Languages:        arabic.LanguageSet(languages) & arabic.LanguageAll,
+			StripTashkil:     has(0),
+			TashkilScope:     arabic.TashkilScope(scope % 3),
+			StripTatweel:     has(1),
+			FoldAlefHamza:    has(2),
+			FoldAlefWasla:    has(3),
+			FoldHamzaSeat:    has(4),
+			FoldTaMarbuta:    has(5),
+			FoldAlefMaksura:  has(6),
+			FoldPresentation: has(7),
+			StripJoiners:     has(8),
+			StripBidi:        has(9),
+			FoldDigits:       has(10),
+			FoldPunctuation:  has(11),
+			StripQuranic:     has(12),
+			Rasm:             has(13),
+		}
+		queries := []string{first}
+		if second != "" {
+			queries = append(queries, second)
+		}
+		m, err := NewLiterals(queries, p, ignoreCase)
+		if err != nil {
+			return
+		}
+		literal := m.(*literalMatcher)
+		if got, want := literal.CannotMatchRawBytes([]byte(line)), literal.CannotMatchRaw(line); got != want {
+			t.Fatalf("byte rejection differs from string rejection: got %v, want %v, line %q", got, want, line)
+		}
+		if literal.CannotMatchRawBytes([]byte(line)) && literal.Matches(p.Normalize(line)) {
+			t.Fatalf("rejected a match: queries=%q line=%q profile=%+v ignoreCase=%v", queries, line, p, ignoreCase)
+		}
+		if literal.FirstPossibleRawByteIndex([]byte(line)) < 0 && literal.Matches(p.Normalize(line)) {
+			t.Fatalf("candidate scan missed a match: queries=%q line=%q profile=%+v ignoreCase=%v", queries, line, p, ignoreCase)
+		}
+	})
+}
+
 func TestStableRawMatchImpliesNormalizedMatch(t *testing.T) {
 	profiles := []arabic.Profile{arabic.ProfileSearch, arabic.ProfileStrict, arabic.ProfileLoose}
-	queries := []string{"مكتبة", "المدينه", "ا", "مَد", "كتاب", "abc", "١٢٣"}
+	queries := []string{"مكتبة", "المدينه", "ا", "مَد", "كتاب", "فارسی", "abc", "١٢٣"}
 	lines := []string{
 		"مكتبة", "مَكْتَبَة", "المدينة", "المدينه", "مَد",
-		"كتاب", "ﻛﺘﺎﺏ", "abc", "أ", "١٢٣", "بِالكتاب",
+		"كتاب", "ﻛﺘﺎﺏ", "فارسی", "abc", "أ", "١٢٣", "بِالكتاب",
 	}
 	for _, p := range profiles {
 		for _, query := range queries {
@@ -44,6 +164,13 @@ func TestStableRawMatchImpliesNormalizedMatch(t *testing.T) {
 	if !folded.(*literalMatcher).MatchesStableRaw("المدينة") {
 		t.Fatal("common ta-marbuta spelling did not use the raw positive shortcut")
 	}
+	persian, err := NewLiteral("فارسی", arabic.ProfileSearch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !persian.(*literalMatcher).MatchesStableRaw("متن فارسی") {
+		t.Fatal("Persian yeh did not use the raw positive shortcut")
+	}
 }
 
 func FuzzStableRawMatchImpliesNormalizedMatch(f *testing.F) {
@@ -51,6 +178,7 @@ func FuzzStableRawMatchImpliesNormalizedMatch(f *testing.F) {
 	f.Add("المدينه", "المدينة", uint8(0))
 	f.Add("كتاب", "كِتاب", uint8(0))
 	f.Add("ا", "أِ", uint8(1))
+	f.Add("فارسی", "متن فارسی", uint8(0))
 	profiles := [...]arabic.Profile{arabic.ProfileSearch, arabic.ProfileStrict, arabic.ProfileLoose}
 	f.Fuzz(func(t *testing.T, query, line string, profileIndex uint8) {
 		if !utf8.ValidString(line) {
@@ -62,7 +190,10 @@ func FuzzStableRawMatchImpliesNormalizedMatch(f *testing.F) {
 			return
 		}
 		literal := m.(*literalMatcher)
-		if literal.MatchesStableRaw(line) && !literal.Matches(profile.Normalize(line)) {
+		if got, want := literal.MatchesStableRawBytes([]byte(line)), literal.MatchesStableRaw(line); got != want {
+			t.Fatalf("byte positive differs from string positive: got %v, want %v, line %q", got, want, line)
+		}
+		if literal.MatchesStableRawBytes([]byte(line)) && !literal.Matches(profile.Normalize(line)) {
 			t.Fatalf("raw positive was false after normalization: query %q, line %q, profile %+v", query, line, profile)
 		}
 	})

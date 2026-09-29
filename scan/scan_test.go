@@ -3,6 +3,7 @@ package scan
 import (
 	"bytes"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -82,6 +83,32 @@ func TestSearchRejectsInvalidUTF8(t *testing.T) {
 	}
 }
 
+func TestRawRejectionPreservesSelectionAndErrors(t *testing.T) {
+	m := mustLiteral(t, "غ")
+	var got []Match
+	found, err := Search(strings.NewReader("سطر\nغ\nآخر\n"), m,
+		Options{InvertMatch: true, AfterContext: 1}, func(mt Match) error {
+			got = append(got, mt)
+			return nil
+		})
+	if err != nil || !found || len(got) != 3 {
+		t.Fatalf("Search = found %v, err %v, matches %+v", found, err, got)
+	}
+	if got[0].Line != 1 || got[0].Context || got[1].Line != 2 || !got[1].Context ||
+		got[2].Line != 3 || got[2].Context {
+		t.Fatalf("inverted/context output changed: %+v", got)
+	}
+
+	if _, err := Search(strings.NewReader("abcdef\n"), m,
+		Options{MaxLineBytes: 5}, func(Match) error { return nil }); err == nil {
+		t.Fatal("raw rejection bypassed the line limit")
+	}
+	if _, err := Search(strings.NewReader(string([]byte{'x', 0xff, '\n'})), m,
+		Options{}, func(Match) error { return nil }); !errors.Is(err, ErrInvalidUTF8) {
+		t.Fatalf("raw rejection bypassed UTF-8 validation: %v", err)
+	}
+}
+
 func TestSearchPropagatesCallbackFailure(t *testing.T) {
 	want := errors.New("write failed")
 	m := mustLiteral(t, "match")
@@ -153,6 +180,61 @@ func TestSearchRejectsNegativeContext(t *testing.T) {
 	}
 }
 
+func TestSearchOmitText(t *testing.T) {
+	m := mustLiteral(t, "غ")
+	var got []Match
+	found, err := Search(strings.NewReader("سطر\nغابة\nآخر\n"), m,
+		Options{OmitText: true, InvertMatch: true}, func(mt Match) error {
+			got = append(got, mt)
+			return nil
+		})
+	if err != nil || !found || len(got) != 2 || got[0].Line != 1 || got[1].Line != 3 ||
+		got[0].Text != "" || got[1].Text != "" {
+		t.Fatalf("summary selection changed: found=%v, matches=%+v, err=%v", found, got, err)
+	}
+	for _, opts := range []Options{
+		{OmitText: true, BeforeContext: 1},
+		{OmitText: true, AfterContext: 1},
+		{OmitText: true, MapSpans: true},
+	} {
+		if _, err := Search(strings.NewReader("غابة\n"), m, opts, func(Match) error { return nil }); err == nil {
+			t.Fatalf("accepted incompatible options: %+v", opts)
+		}
+	}
+}
+
+func TestSearchExistenceOnlyValidatesTail(t *testing.T) {
+	m := mustLiteral(t, "غ")
+	var got []Match
+	found, err := Search(strings.NewReader("غ\nسطر آخر\nغ\n"), m,
+		Options{OmitText: true, ExistenceOnly: true}, func(mt Match) error {
+			got = append(got, mt)
+			return nil
+		})
+	if err != nil || !found || len(got) != 1 || got[0].Line != 1 {
+		t.Fatalf("existence scan: found=%v, matches=%+v, err=%v", found, got, err)
+	}
+	for _, tt := range []struct {
+		name  string
+		input string
+		opts  Options
+	}{
+		{"invalid UTF-8", "غ\n" + string([]byte{0xff}) + "\n", Options{ExistenceOnly: true}},
+		{"line limit", "غ\nabcdef\n", Options{ExistenceOnly: true, MaxLineBytes: 5}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if found, err := Search(strings.NewReader(tt.input), m, tt.opts,
+				func(Match) error { return nil }); err == nil || found {
+				t.Fatalf("tail error lost: found=%v, err=%v", found, err)
+			}
+		})
+	}
+	if _, err := Search(strings.NewReader("غ\n"), m,
+		Options{ExistenceOnly: true, AfterContext: 1}, func(Match) error { return nil }); err == nil {
+		t.Fatal("ExistenceOnly accepted context")
+	}
+}
+
 func TestSearchMapsSpansToOriginalText(t *testing.T) {
 	m := mustLiteral(t, "مد")
 	input := "مُدُ next\n"
@@ -182,6 +264,21 @@ func TestSearchMapsPresentationComponentToWholeLigature(t *testing.T) {
 	}
 	if want := (Span{0, len("ﻻ")}); len(got.Spans) != 1 || got.Spans[0] != want {
 		t.Fatalf("spans = %v; want %v", got.Spans, want)
+	}
+}
+
+func TestSearchMappedLongLineThenShortLine(t *testing.T) {
+	m := mustLiteral(t, "غ")
+	long := strings.Repeat("ا", (1<<17)+1) + " غ"
+	var got []Match
+	found, err := Search(strings.NewReader(long+"\nغ\n"), m, Options{MapSpans: true}, func(mt Match) error {
+		got = append(got, mt)
+		return nil
+	})
+	if err != nil || !found || len(got) != 2 ||
+		len(got[0].Spans) != 1 || got[0].Spans[0] != (Span{len(long) - len("غ"), len(long)}) ||
+		len(got[1].Spans) != 1 || got[1].Spans[0] != (Span{0, len("غ")}) {
+		t.Fatalf("long then short mapped spans: found=%v, matches=%+v, err=%v", found, got, err)
 	}
 }
 
@@ -219,6 +316,55 @@ func TestSearchWordRegexpTreatsPersianZWNJAsWordInternal(t *testing.T) {
 	}
 	if len(lines) != 1 || lines[0] != 2 {
 		t.Fatalf("word matches = %v; want [2]", lines)
+	}
+}
+
+type matcherWithoutRawShortcuts struct{ match.Matcher }
+
+func TestMappedRawRejectionMatchesFullPath(t *testing.T) {
+	input := "سطر بعيد\nﻍ\nغَ،\nكِتاب\nثوب\nغَيِّر\n"
+	for _, queries := range [][]string{{"غ"}, {"غ", "ث"}} {
+		m, err := match.NewLiterals(queries, arabic.ProfileSearch, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, opts := range []Options{
+			{MapSpans: true},
+			{MapSpans: true, BeforeContext: 1, AfterContext: 1},
+			{MapSpans: true, WordRegexp: true},
+			{MapSpans: true, InvertMatch: true},
+			{WordRegexp: true, OmitText: true},
+		} {
+			search := func(m match.Matcher) (bool, []Match, error) {
+				var got []Match
+				found, err := Search(strings.NewReader(input), m, opts, func(mt Match) error {
+					got = append(got, mt)
+					return nil
+				})
+				return found, got, err
+			}
+			found, got, err := search(m)
+			wantFound, want, wantErr := search(matcherWithoutRawShortcuts{m})
+			if err != nil || wantErr != nil || found != wantFound || !reflect.DeepEqual(got, want) {
+				t.Fatalf("queries=%q opts=%+v: optimized=(%v,%+v,%v), full=(%v,%+v,%v)",
+					queries, opts, found, got, err, wantFound, want, wantErr)
+			}
+		}
+	}
+}
+
+func TestMappedRawRejectionPreservesReadErrors(t *testing.T) {
+	m := mustLiteral(t, "غ")
+	for _, opts := range []Options{{MapSpans: true}, {WordRegexp: true}} {
+		opts.MaxLineBytes = 5
+		if _, err := Search(strings.NewReader("abcdef\n"), m, opts, func(Match) error { return nil }); err == nil {
+			t.Fatalf("mapped rejection bypassed line limit: %+v", opts)
+		}
+		opts.MaxLineBytes = 0
+		if _, err := Search(bytes.NewReader([]byte{'x', 0xff, '\n'}), m, opts,
+			func(Match) error { return nil }); !errors.Is(err, ErrInvalidUTF8) {
+			t.Fatalf("mapped rejection bypassed UTF-8 validation: %+v, %v", opts, err)
+		}
 	}
 }
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"flag"
@@ -263,7 +264,18 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		(opts.filenameMode == filenameAuto && (len(inputs) > 1 || opts.recursive))
 	highlight := colorEnabled(opts.color, stdout)
 
-	hadSelection, searchErr := searchInputs(inputs, stdin, stdout, matcher, opts, showFilenames, highlight)
+	searchOutput := stdout
+	var buffered *bufio.Writer
+	// Multiple inputs already buffer each file for ordered output. Buffer a
+	// named single file too, while keeping stdin output immediate for streams.
+	if len(inputs) == 1 && !inputs[0].stdin && !opts.countOnly && !opts.filesWithMatches && !opts.filesWithoutMatch {
+		buffered = bufio.NewWriterSize(stdout, 64<<10)
+		searchOutput = buffered
+	}
+	hadSelection, searchErr := searchInputs(inputs, stdin, searchOutput, matcher, opts, showFilenames, highlight)
+	if buffered != nil {
+		searchErr = errors.Join(searchErr, buffered.Flush())
+	}
 	err = errors.Join(discoverErr, searchErr)
 	if err != nil {
 		fmt.Fprintf(stderr, "agrep: %v\n", err)
@@ -429,11 +441,13 @@ func searchOne(input inputSpec, stdin io.Reader, output io.Writer, matcher match
 
 	contextLines := !opts.countOnly && !opts.filesWithMatches && !opts.filesWithoutMatch
 	searchOpts := scan.Options{
-		MaxLineBytes: opts.maxLineBytes,
-		File:         input.label,
-		InvertMatch:  opts.invertMatch,
-		WordRegexp:   opts.wordRegexp,
-		MapSpans:     contextLines && (opts.jsonOutput || opts.onlyMatching || highlight),
+		MaxLineBytes:  opts.maxLineBytes,
+		File:          input.label,
+		InvertMatch:   opts.invertMatch,
+		WordRegexp:    opts.wordRegexp,
+		MapSpans:      contextLines && (opts.jsonOutput || opts.onlyMatching || highlight),
+		OmitText:      !contextLines,
+		ExistenceOnly: opts.filesWithMatches || opts.filesWithoutMatch,
 	}
 	if contextLines {
 		searchOpts.BeforeContext = opts.beforeContext

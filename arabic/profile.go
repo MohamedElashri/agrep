@@ -58,6 +58,11 @@ func tashkilScopeMatches(scope TashkilScope, r rune) bool {
 		}
 		return false
 	default: // TashkilAllMn
+		// Most Arabic letters fall in this starter range. Avoid a Unicode
+		// table lookup for each one while retaining the general Mn fallback.
+		if r < 0x0300 || (r >= 0x0620 && r <= 0x064A) {
+			return false
+		}
 		return unicode.Is(unicode.Mn, r)
 	}
 }
@@ -101,7 +106,7 @@ func isBidiControl(r rune) bool {
 // combining mark.
 type Profile struct {
 	// Languages selects language-aware Arabic-script equivalences. Presets
-	// default to Arabic only, preserving all pre-Phase-8 behavior.
+	// default to Arabic only; cross-language folds require explicit selection.
 	Languages LanguageSet
 	// Rasm folds Arabic consonants that differ only by i'jam to a shared
 	// dotless skeleton. It does not fold language-specific letters.
@@ -180,15 +185,11 @@ type Profile struct {
 }
 
 var (
-	// ProfileSearch is agrep's original, default behavior: every fold
-	// below is enabled and every Unicode non-spacing mark is stripped, and
-	// (as of Phase 4) presentation forms are expanded and joiners, bidi
-	// controls, and Quranic annotation marks are stripped. See the
-	// deliberate exception to "never silently change" documented in
-	// plan.md's Phase 4 completion notes: this fixes the presentation-form
-	// defect flagged from the very first version of this project's plan,
-	// done explicitly and tested, not silently. Digit and punctuation
-	// folding stay off by default; see ProfileLoose.
+	// ProfileSearch is agrep's default behavior: it strips every Unicode
+	// non-spacing mark, expands Arabic presentation forms, strips joiners,
+	// bidi controls, and Quranic annotation marks, and enables the Arabic
+	// spelling folds below. Digit and punctuation folding stay off by default;
+	// see ProfileLoose.
 	ProfileSearch = Profile{
 		Languages:        LanguageArabic,
 		StripTashkil:     true,
@@ -263,7 +264,7 @@ var (
 	// decomposes anything, would leave untouched. The fidelity claim
 	// covers Arabic-script normalization only. FoldPresentation,
 	// StripJoiners, StripBidi, FoldDigits, FoldPunctuation, and
-	// StripQuranic (Phase 4) all stay off: Lucene's normalizer does none
+	// StripQuranic all stay off: Lucene's normalizer does none
 	// of them.
 	ProfileLucene = Profile{
 		Languages:       LanguageArabic,
@@ -290,11 +291,11 @@ var (
 	// leaves precomposed non-Arabic characters like Latin é untouched,
 	// while this engine's NFD-first pass may decompose them.
 	// FoldPresentation, StripJoiners, StripBidi, FoldDigits,
-	// FoldPunctuation, and StripQuranic (Phase 4) all stay off: none of
+	// FoldPunctuation, and StripQuranic all stay off: none of
 	// them are part of the normalize_alef_ar/dediac_ar family this profile
 	// reproduces (NFKC-based presentation-form folding lives in CAMeL
 	// Tools' separate normalize_unicode function, deliberately excluded
-	// here; see the Phase 3 completion notes in plan.md for why).
+	// here; see docs/NORMALIZATION.md for the supported behavior).
 	ProfileCAMeL = Profile{
 		Languages:       LanguageArabic,
 		StripTashkil:    true,
@@ -326,10 +327,9 @@ func (p Profile) Normalize(s string) string {
 	}
 	s = foldLanguagePrecomposed(s, p.Languages)
 
-	decomposed := s
-	if !norm.NFD.IsNormalString(s) {
-		decomposed = norm.NFD.String(s)
-	}
+	// String already returns s unchanged when it is in NFD. Calling
+	// IsNormalString first repeats the same scan on decomposable input.
+	decomposed := norm.NFD.String(s)
 
 	var b strings.Builder
 	changed := false
@@ -417,7 +417,7 @@ func (p Profile) Normalize(s string) string {
 		switch {
 		case !drop && (canonicalOut == 'ا' || canonicalOut == 'و' || canonicalOut == 'ي'):
 			nextBase = canonicalOut
-		case drop || unicode.Is(unicode.Mn, r):
+		case lastBase != 0 && (drop || unicode.Is(unicode.Mn, r)):
 			nextBase = lastBase
 		}
 		lastBase = nextBase
@@ -453,11 +453,7 @@ func (p Profile) Normalize(s string) string {
 	// Re-normalizing here is what makes Normalize(Normalize(x)) == Normalize(x):
 	// without it, a second call's own leading NFD check would silently
 	// re-sort what this call already returned.
-	out := b.String()
-	if !norm.NFD.IsNormalString(out) {
-		out = norm.NFD.String(out)
-	}
-	return out
+	return norm.NFD.String(b.String())
 }
 
 // transformRune mirrors Normalize's deliberately inlined hot loop for mapped
@@ -543,7 +539,7 @@ func (p Profile) transformRune(r, lastBase rune) (out rune, drop bool, nextBase 
 	switch {
 	case !drop && (canonicalOut == 'ا' || canonicalOut == 'و' || canonicalOut == 'ي'):
 		nextBase = canonicalOut
-	case drop || unicode.Is(unicode.Mn, r):
+	case lastBase != 0 && (drop || unicode.Is(unicode.Mn, r)):
 		nextBase = lastBase
 	}
 	return out, drop, nextBase

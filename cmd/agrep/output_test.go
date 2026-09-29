@@ -35,3 +35,19 @@ func TestColorEnabledModes(t *testing.T) {
 		t.Fatal("never color was enabled")
 	}
 }
+
+func TestHumanEmitterPlainPrefixesAndContext(t *testing.T) {
+	var output strings.Builder
+	emit := humanEmitter(&output, humanOutputOptions{lineNumbers: true, filenames: true})
+	for _, mt := range []scan.Match{
+		{File: "notes.txt", Line: 3, Text: "كتاب"},
+		{File: "notes.txt", Line: 8, Text: "سياق", Context: true, GroupStart: true},
+	} {
+		if err := emit(mt); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if want := "notes.txt:3:كتاب\n--\nnotes.txt-8-سياق\n"; output.String() != want {
+		t.Fatalf("output = %q, want %q", output.String(), want)
+	}
+}

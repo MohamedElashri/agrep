@@ -1,6 +1,8 @@
 package scan
 
 import (
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -31,6 +33,106 @@ func BenchmarkSearch(b *testing.B) {
 
 func BenchmarkSearchMapped(b *testing.B) {
 	benchmarkSearch(b, Options{MapSpans: true})
+}
+
+func BenchmarkSearchMappedMiss(b *testing.B) {
+	benchmarkSearchQueryWithOptions(b, benchFixture(10*1024*1024), "غيرموجود", false, Options{MapSpans: true})
+}
+
+func BenchmarkSearchMappedSparseHit(b *testing.B) {
+	var lines strings.Builder
+	for lines.Len() < 10*1024*1024 {
+		for i := 0; i < 999; i++ {
+			lines.WriteString(benchLine)
+			lines.WriteByte('\n')
+		}
+		lines.WriteString("هذا غيرموجود هنا\n")
+	}
+	benchmarkSearchQueryWithOptions(b, lines.String(), "غيرموجود", true, Options{MapSpans: true})
+}
+
+func BenchmarkSearchWordMiss(b *testing.B) {
+	benchmarkSearchQueryWithOptions(b, benchFixture(10*1024*1024), "غيرموجود", false, Options{WordRegexp: true})
+}
+
+func BenchmarkSearchPlain(b *testing.B) {
+	line := "أعلنت المدينة افتتاح مكتبة جديدة.\n"
+	var fixture strings.Builder
+	for fixture.Len() < 10*1024*1024 {
+		fixture.WriteString(line)
+	}
+	benchmarkSearchQuery(b, fixture.String(), "مكتبة", true)
+}
+
+func BenchmarkSearchPlainSummary(b *testing.B) {
+	line := "أعلنت المدينة افتتاح مكتبة جديدة.\n"
+	var fixture strings.Builder
+	for fixture.Len() < 10*1024*1024 {
+		fixture.WriteString(line)
+	}
+	benchmarkSearchQueryWithOptions(b, fixture.String(), "مكتبة", true, Options{OmitText: true})
+}
+
+func BenchmarkSearchMiss(b *testing.B) {
+	benchmarkSearchQuery(b, benchFixture(10*1024*1024), "غيرموجود", false)
+}
+
+func BenchmarkSearchSparseHit(b *testing.B) {
+	var lines strings.Builder
+	for lines.Len() < 10*1024*1024 {
+		for i := 0; i < 999; i++ {
+			lines.WriteString(benchLine)
+			lines.WriteByte('\n')
+		}
+		lines.WriteString("هذا غيرموجود هنا\n")
+	}
+	benchmarkSearchQuery(b, lines.String(), "غيرموجود", true)
+}
+
+func BenchmarkSearchVariedSummary(b *testing.B) {
+	source, err := os.ReadFile("../testdata/corpus/varied.txt")
+	if err != nil {
+		b.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(source)), "\n")
+	var fixture strings.Builder
+	for i := 0; fixture.Len() < 16<<20; i++ {
+		fixture.WriteString(lines[i%len(lines)])
+		fixture.WriteString(" #")
+		fixture.WriteString(strconv.Itoa(i))
+		fixture.WriteByte('\n')
+	}
+	for _, tc := range []struct {
+		name, query string
+		found       bool
+	}{
+		{"sparse_hit", "فارسی", true},
+		{"miss", "غيرموجود", false},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			benchmarkSearchQueryWithOptions(b, fixture.String(), tc.query, tc.found, Options{OmitText: true})
+		})
+	}
+}
+
+func benchmarkSearchQuery(b *testing.B, fixture, query string, wantFound bool) {
+	benchmarkSearchQueryWithOptions(b, fixture, query, wantFound, Options{})
+}
+
+func benchmarkSearchQueryWithOptions(b *testing.B, fixture, query string, wantFound bool, opts Options) {
+	m := mustLiteral(b, query)
+	b.SetBytes(int64(len(fixture)))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		found, err := Search(strings.NewReader(fixture), m, opts, func(Match) error { return nil })
+		if err != nil {
+			b.Fatalf("Search: %v", err)
+		}
+		if found != wantFound {
+			b.Fatalf("Search found=%v; want %v", found, wantFound)
+		}
+	}
 }
 
 func benchmarkSearch(b *testing.B, opts Options) {

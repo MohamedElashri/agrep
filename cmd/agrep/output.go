@@ -32,6 +32,35 @@ type humanOutputOptions struct {
 }
 
 func humanEmitter(w io.Writer, opts humanOutputOptions) func(scan.Match) error {
+	// Ordinary lines can reuse one byte buffer across emissions. Highlighted
+	// and match-only output keep the span-aware renderer below.
+	if !opts.onlyMatching && !opts.highlight {
+		var line []byte
+		return func(m scan.Match) error {
+			if m.GroupStart {
+				if _, err := io.WriteString(w, "--\n"); err != nil {
+					return err
+				}
+			}
+			line = line[:0]
+			separator := byte(':')
+			if m.Context {
+				separator = '-'
+			}
+			if opts.filenames {
+				line = append(line, m.File...)
+				line = append(line, separator)
+			}
+			if opts.lineNumbers {
+				line = strconv.AppendInt(line, m.Line, 10)
+				line = append(line, separator)
+			}
+			line = append(line, m.Text...)
+			line = append(line, '\n')
+			_, err := w.Write(line)
+			return err
+		}
+	}
 	return func(m scan.Match) error {
 		if m.GroupStart {
 			if _, err := fmt.Fprintln(w, "--"); err != nil {

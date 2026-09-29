@@ -141,16 +141,10 @@ func TestFoldPunctuation(t *testing.T) {
 	}
 }
 
-// TestPhase4RulesComposeWithHamzaLogic is a direct check that the new
-// drop cases (joiners here; bidi and Quranic marks follow the identical
-// code path) integrate correctly with the hamza-lookback logic from
-// Phase 3: dropping one of them between a hamza-carrying letter and its
-// hamza mark must not break the fold decision, the same way a dropped
-// tatweel doesn't (see the "drop || Mn" branch in Normalize's
-// context-tracking switch): this is what actually distinguishes "was this
-// bug fixed generally" from "was it fixed only for the tatweel case that
-// happened to be fuzzed first".
-func TestPhase4RulesComposeWithHamzaLogic(t *testing.T) {
+// TestDroppedJoinerPreservesHamzaFold checks that dropping a joiner between
+// an alef and its combining hamza does not break the fold decision. Bidi and
+// Quranic marks use the same drop path, as does tatweel.
+func TestDroppedJoinerPreservesHamzaFold(t *testing.T) {
 	p := ProfileSearch // FoldAlefHamza and StripJoiners both on
 
 	// Already-NFD-decomposed alef + ZWJ + combining hamza-above: an
