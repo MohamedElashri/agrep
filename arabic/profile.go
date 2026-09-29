@@ -106,7 +106,7 @@ func isBidiControl(r rune) bool {
 // combining mark.
 type Profile struct {
 	// Languages selects language-aware Arabic-script equivalences. Presets
-	// default to Arabic only, preserving all pre-Phase-8 behavior.
+	// default to Arabic only; cross-language folds require explicit selection.
 	Languages LanguageSet
 	// Rasm folds Arabic consonants that differ only by i'jam to a shared
 	// dotless skeleton. It does not fold language-specific letters.
@@ -185,15 +185,11 @@ type Profile struct {
 }
 
 var (
-	// ProfileSearch is agrep's original, default behavior: every fold
-	// below is enabled and every Unicode non-spacing mark is stripped, and
-	// (as of Phase 4) presentation forms are expanded and joiners, bidi
-	// controls, and Quranic annotation marks are stripped. See the
-	// deliberate exception to "never silently change" documented in
-	// plan.md's Phase 4 completion notes: this fixes the presentation-form
-	// defect flagged from the very first version of this project's plan,
-	// done explicitly and tested, not silently. Digit and punctuation
-	// folding stay off by default; see ProfileLoose.
+	// ProfileSearch is agrep's default behavior: it strips every Unicode
+	// non-spacing mark, expands Arabic presentation forms, strips joiners,
+	// bidi controls, and Quranic annotation marks, and enables the Arabic
+	// spelling folds below. Digit and punctuation folding stay off by default;
+	// see ProfileLoose.
 	ProfileSearch = Profile{
 		Languages:        LanguageArabic,
 		StripTashkil:     true,
@@ -268,7 +264,7 @@ var (
 	// decomposes anything, would leave untouched. The fidelity claim
 	// covers Arabic-script normalization only. FoldPresentation,
 	// StripJoiners, StripBidi, FoldDigits, FoldPunctuation, and
-	// StripQuranic (Phase 4) all stay off: Lucene's normalizer does none
+	// StripQuranic all stay off: Lucene's normalizer does none
 	// of them.
 	ProfileLucene = Profile{
 		Languages:       LanguageArabic,
@@ -295,11 +291,11 @@ var (
 	// leaves precomposed non-Arabic characters like Latin é untouched,
 	// while this engine's NFD-first pass may decompose them.
 	// FoldPresentation, StripJoiners, StripBidi, FoldDigits,
-	// FoldPunctuation, and StripQuranic (Phase 4) all stay off: none of
+	// FoldPunctuation, and StripQuranic all stay off: none of
 	// them are part of the normalize_alef_ar/dediac_ar family this profile
 	// reproduces (NFKC-based presentation-form folding lives in CAMeL
 	// Tools' separate normalize_unicode function, deliberately excluded
-	// here; see the Phase 3 completion notes in plan.md for why).
+	// here; see docs/NORMALIZATION.md for the supported behavior).
 	ProfileCAMeL = Profile{
 		Languages:       LanguageArabic,
 		StripTashkil:    true,

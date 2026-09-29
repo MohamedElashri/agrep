@@ -45,8 +45,8 @@ func TestNormalizeReordersMarksAfterDroppedStarter(t *testing.T) {
 	}
 }
 
-// TestNormalizePackageFuncIsProfileSearch locks in Phase 3's work item 2:
-// the package-level Normalize is exactly ProfileSearch.Normalize.
+// TestNormalizePackageFuncIsProfileSearch verifies that the package-level
+// Normalize uses the default search profile.
 func TestNormalizePackageFuncIsProfileSearch(t *testing.T) {
 	for _, s := range []string{"", "أحمد", "café", "plain"} {
 		if got, want := Normalize(s), ProfileSearch.Normalize(s); got != want {
@@ -55,8 +55,7 @@ func TestNormalizePackageFuncIsProfileSearch(t *testing.T) {
 	}
 }
 
-// TestKeepHamzaPreservesDistinction is the direct regression test for the
-// interaction this phase had to get right: with FoldAlefHamza off, NFD
+// TestKeepHamzaPreservesDistinction checks that with FoldAlefHamza off, NFD
 // decomposition must not let a blanket StripTashkil silently re-merge أ and
 // ا by stripping the leftover combining hamza-above mark. See the Profile
 // doc comment.
@@ -201,7 +200,7 @@ func TestProfileCAMeL(t *testing.T) {
 }
 
 // profileBit indexes a Profile bool field for profileFromBits/bitsFromProfile.
-// Adding another boolean field in a later phase means adding one more constant
+// Adding another boolean field means adding one more constant
 // here and one more line in each of those two functions. Multi-valued
 // dimensions such as Languages get a separate fuzz
 // input, as FuzzLanguageNormalizeProperties demonstrates. An explicit,

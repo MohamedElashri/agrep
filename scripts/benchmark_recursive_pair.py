@@ -25,7 +25,7 @@ def invoke(binary, args, *, capture=False):
     )
 
 
-def write_trees(fixture_dir, phase6_cases=False):
+def write_trees(fixture_dir, late_file_cases=False):
     small = fixture_dir / "many-small"
     large = fixture_dir / "few-large"
     errors = fixture_dir / "errors"
@@ -72,7 +72,7 @@ def write_trees(fixture_dir, phase6_cases=False):
         if actual != expected:
             raise RuntimeError(f"unexpected files under {root}; use a clean fixture directory")
     extra = []
-    if phase6_cases:
+    if late_file_cases:
         late = fixture_dir / "few-large-late"
         absent = fixture_dir / "few-large-absent"
         late.mkdir(parents=True, exist_ok=True)
@@ -118,7 +118,7 @@ def main():
     parser.add_argument("--fixture-dir", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--runs", type=int, default=7)
-    parser.add_argument("--phase6-cases", action="store_true",
+    parser.add_argument("--late-file-cases", action="store_true",
                         help="also measure late hits and absent matches in large files")
     args = parser.parse_args()
     if args.runs < 1:
@@ -133,7 +133,7 @@ def main():
 
     fixture_dir = args.fixture_dir.resolve()
     small, large, errors, small_files, large_files, extra_trees = write_trees(
-        fixture_dir, args.phase6_cases)
+        fixture_dir, args.late_file_cases)
     small_lines = [str(path) + "\n" for path in small_files]
     large_lines = [str(path) + "\n" for path in large_files]
     cases = [
@@ -152,7 +152,7 @@ def main():
          ["-r", "--threads=4", "--include=*.txt", "--exclude=group-00/part-*.txt",
           "-l", "اعلنت", str(small)], 0, "".join(small_lines[100:]).encode()),
     ]
-    if args.phase6_cases:
+    if args.late_file_cases:
         for name, root, option in (
             ("few_large_late_hit", extra_trees[0], "-l"),
             ("few_large_absent", extra_trees[1], "-L"),

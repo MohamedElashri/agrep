@@ -7,7 +7,7 @@
 // Only entries whose decomposition field carries one of the four
 // positional tags <isolated>, <initial>, <medial>, <final> are included.
 // That is deliberately narrower than a full NFKC/compatibility
-// decomposition (see the "Decision to make" note in plan.md's Phase 4):
+// decomposition:
 // it picks up every contextual letter form, ligature, and presentation
 // form of a standalone diacritic in those two blocks (verified against
 // UnicodeData.txt: this includes ﻻ LAM WITH ALEF, ﷲ ALLAH, ﷺ

@@ -39,21 +39,21 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--size-mib", type=int, default=8)
     parser.add_argument("--runs", type=int, default=5)
-    parser.add_argument("--phase2-cases", action="store_true",
+    parser.add_argument("--varied-long-cases", action="store_true",
                         help="also measure varied misses and long-line hits")
-    parser.add_argument("--phase3-cases", action="store_true",
+    parser.add_argument("--startup-file-cases", action="store_true",
                         help="also measure empty-file startup and filename summary modes")
-    parser.add_argument("--phase4-cases", action="store_true",
+    parser.add_argument("--mapped-word-cases", action="store_true",
                         help="also measure mapped misses, sparse hits, and word boundaries")
-    parser.add_argument("--phase6-cases", action="store_true",
+    parser.add_argument("--mixed-corpus-cases", action="store_true",
                         help="also measure unique mixed-length corpus lines")
     parser.add_argument("--check-corpus", action="store_true",
                         help="compare full CLI output on every corpus case")
     args = parser.parse_args()
     if args.size_mib <= 0 or args.runs <= 0:
         parser.error("--size-mib and --runs must be positive")
-    if args.phase4_cases and not args.phase2_cases:
-        parser.error("--phase4-cases requires --phase2-cases for the varied fixture")
+    if args.mapped_word_cases and not args.varied_long_cases:
+        parser.error("--mapped-word-cases requires --varied-long-cases for the varied fixture")
 
     binaries = {"before": args.before.resolve(), "after": args.after.resolve()}
     for binary in binaries.values():
@@ -67,7 +67,7 @@ def main():
         output_digest = hashlib.sha256()
         comparisons = 0
         modes = (("--json",), ("-o",), ("-n",))
-        if args.phase4_cases:
+        if args.mapped_word_cases:
             modes += (("--json", "-w"), ("-n", "-w"), ("--json", "-C", "1"))
         for case in corpus_cases:
             for mode in modes:
@@ -107,7 +107,7 @@ def main():
         ("json_spans", msa, ["--json", "مكتبه"], 0, msa.lines),
     ]
     extra_fixtures = []
-    if args.phase2_cases:
+    if args.varied_long_cases:
         varied_sources = ("msa.txt", "quran.txt", "ocr.txt", "pdf.txt",
                           "social.txt", "languages.txt", "poetry.txt", "distinct.txt")
         line_pool = [line for name in varied_sources
@@ -131,7 +131,7 @@ def main():
             ("long_lines", long_lines, ["-c", "مكتبة"], 0, long_lines.lines),
         ))
         extra_fixtures = [(varied, varied_sources), (long_lines, ("msa.txt",))]
-    if args.phase3_cases:
+    if args.startup_file_cases:
         empty_path = fixture_dir / "empty.txt"
         empty_path.write_bytes(b"")
         empty = Fixture("empty startup input", empty_path, 0, 0)
@@ -141,7 +141,7 @@ def main():
             ("files_without_match", msa, ["-L", "غيرموجود"], 0, None),
         ))
         extra_fixtures.append((empty, ()))
-    if args.phase4_cases:
+    if args.mapped_word_cases:
         sparse_block = (CORPUS / "msa.txt").read_bytes() * 999 + "هذه غيرموجود هنا\n".encode()
         sparse = fixture(fixture_dir / "sparse.txt", "sparse mapped hits",
                          sparse_block, size)
@@ -153,7 +153,7 @@ def main():
             ("word_miss", msa, ["-w", "-c", "غيرموجود"], 1, None),
         ))
         extra_fixtures.append((sparse, ("msa.txt",)))
-    if args.phase6_cases:
+    if args.mixed_corpus_cases:
         mixed = varied_fixture(fixture_dir / "varied-mixed.txt", size)
         exact = int(invoke([str(binaries["before"]), "-c", "فارسی", str(mixed.path)],
                            capture=True).stdout)

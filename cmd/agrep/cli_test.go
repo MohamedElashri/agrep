@@ -165,12 +165,8 @@ func withOverride(base arabic.Profile, mutate func(*arabic.Profile)) arabic.Prof
 	return p
 }
 
-// TestResolveProfile is the "precedence and conflicts" table test Phase 3
-// calls for: each --keep-*/--fold-* flag only ever clears or sets one field
-// relative to the selected preset, so there is no real conflict between
-// any of them, but this locks in that every override, individually
-// and combined, behaves exactly as documented rather than leaving it
-// implicit.
+// TestResolveProfile checks that each --keep-*/--fold-* flag changes only its
+// intended field relative to the selected preset, both alone and combined.
 func TestResolveProfile(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -689,7 +685,7 @@ func TestRunTranslitOutputRemapsSpans(t *testing.T) {
 	}
 }
 
-func TestRunRejectsInvalidPhase6Options(t *testing.T) {
+func TestRunRejectsInvalidSearchOutputOptions(t *testing.T) {
 	tests := [][]string{
 		{"--regex", "["},
 		{"--color=bogus", "x"},
@@ -704,7 +700,7 @@ func TestRunRejectsInvalidPhase6Options(t *testing.T) {
 	}
 }
 
-func TestRunRejectsInvalidPhase7Options(t *testing.T) {
+func TestRunRejectsInvalidEncodingTransliterationOptions(t *testing.T) {
 	tests := [][]string{
 		{"--encoding=unknown", "x"},
 		{"--translit=unknown", "x"},
