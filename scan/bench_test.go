@@ -1,6 +1,8 @@
 package scan
 
 import (
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -85,6 +87,32 @@ func BenchmarkSearchSparseHit(b *testing.B) {
 		lines.WriteString("هذا غيرموجود هنا\n")
 	}
 	benchmarkSearchQuery(b, lines.String(), "غيرموجود", true)
+}
+
+func BenchmarkSearchVariedSummary(b *testing.B) {
+	source, err := os.ReadFile("../testdata/corpus/varied.txt")
+	if err != nil {
+		b.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(source)), "\n")
+	var fixture strings.Builder
+	for i := 0; fixture.Len() < 16<<20; i++ {
+		fixture.WriteString(lines[i%len(lines)])
+		fixture.WriteString(" #")
+		fixture.WriteString(strconv.Itoa(i))
+		fixture.WriteByte('\n')
+	}
+	for _, tc := range []struct {
+		name, query string
+		found       bool
+	}{
+		{"sparse_hit", "فارسی", true},
+		{"miss", "غيرموجود", false},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			benchmarkSearchQueryWithOptions(b, fixture.String(), tc.query, tc.found, Options{OmitText: true})
+		})
+	}
 }
 
 func benchmarkSearchQuery(b *testing.B, fixture, query string, wantFound bool) {

@@ -76,27 +76,49 @@ func NewLiterals(queries []string, p arabic.Profile, ignoreCase bool) (Matcher, 
 		stableBytes[i] = []byte(key)
 	}
 	anchors := rawRejectionAnchors(keys, p, ignoreCase)
+	var anchorRune rune
+	if len(anchors) == 2 {
+		anchorRune, _ = utf8.DecodeRuneInString(anchors)
+	}
+	var requiredRaw []string
+	var requiredRawBytes [][]byte
+	if len(keys) == 1 && len([]rune(anchors)) == 1 {
+		for _, r := range keys[0] {
+			if !strings.ContainsRune(rawRejectionAnchorRunes, r) {
+				continue
+			}
+			value := string(r)
+			requiredRaw = append(requiredRaw, value)
+			requiredRawBytes = append(requiredRawBytes, []byte(value))
+		}
+	}
 	return &literalMatcher{
-		queries:     append([]string(nil), queries...),
-		keys:        keys,
-		stableKeys:  stable,
-		stableBytes: stableBytes,
-		rawAnchors:  anchors,
-		anchorBytes: []byte(anchors),
-		profile:     p,
-		ignoreCase:  ignoreCase,
+		queries:          append([]string(nil), queries...),
+		keys:             keys,
+		stableKeys:       stable,
+		stableBytes:      stableBytes,
+		rawAnchors:       anchors,
+		anchorBytes:      []byte(anchors),
+		anchorRune:       anchorRune,
+		requiredRaw:      requiredRaw,
+		requiredRawBytes: requiredRawBytes,
+		profile:          p,
+		ignoreCase:       ignoreCase,
 	}, nil
 }
 
 type literalMatcher struct {
-	queries     []string // original, unnormalized patterns
-	keys        []string // normalized comparison keys; guaranteed non-empty
-	stableKeys  []string // keys whose raw occurrence survives normalization
-	stableBytes [][]byte // byte form of stableKeys for scanning raw lines
-	rawAnchors  string   // necessary raw characters, one per key; empty disables rejection
-	anchorBytes []byte   // byte form of rawAnchors for the single-anchor fast path
-	profile     arabic.Profile
-	ignoreCase  bool
+	queries          []string // original, unnormalized patterns
+	keys             []string // normalized comparison keys; guaranteed non-empty
+	stableKeys       []string // keys whose raw occurrence survives normalization
+	stableBytes      [][]byte // byte form of stableKeys for scanning raw lines
+	rawAnchors       string   // necessary raw characters, one per key; empty disables rejection
+	anchorBytes      []byte   // byte form of rawAnchors for the single-anchor fast path
+	anchorRune       rune     // invariant rune for single-anchor presentation checks
+	requiredRaw      []string // invariant starter subsequence required by one key
+	requiredRawBytes [][]byte
+	profile          arabic.Profile
+	ignoreCase       bool
 }
 
 func (m *literalMatcher) String() string          { return strings.Join(m.queries, " | ") }
@@ -154,17 +176,28 @@ func rawRejectionAnchors(keys []string, p arabic.Profile, ignoreCase bool) strin
 	return anchors.String()
 }
 
-// CannotMatchRaw proves a negative only when every key has a stable anchor
-// and the line contains neither any anchor nor a possible presentation form.
+// CannotMatchRaw proves a negative only when every key has a stable anchor.
+// For one key, its invariant starter subsequence must also occur in order;
+// normalization cannot reorder these starters. Presentation forms make the
+// proof inconclusive because they can introduce those starters.
 // A true result means normalization and matching can be skipped for this line.
 func (m *literalMatcher) CannotMatchRaw(line string) bool {
 	if m.rawAnchors == "" {
 		return false
 	}
 	if len(m.rawAnchors) == 2 {
-		if strings.Contains(line, m.rawAnchors) {
-			return false
+		offset := 0
+		for _, anchor := range m.requiredRaw {
+			pos := strings.Index(line[offset:], anchor)
+			if pos < 0 {
+				if strings.IndexByte(line, 0xef) < 0 {
+					return true
+				}
+				return m.presentationAnchorIndexString(line) < 0
+			}
+			offset += pos + len(anchor)
 		}
+		return false
 	} else if strings.ContainsAny(line, m.rawAnchors) {
 		return false
 	}
@@ -177,13 +210,82 @@ func (m *literalMatcher) CannotMatchRawBytes(line []byte) bool {
 		return false
 	}
 	if len(m.anchorBytes) == 2 {
-		if bytes.Contains(line, m.anchorBytes) {
-			return false
+		offset := 0
+		for _, anchor := range m.requiredRawBytes {
+			pos := bytes.Index(line[offset:], anchor)
+			if pos < 0 {
+				if bytes.IndexByte(line, 0xef) < 0 {
+					return true
+				}
+				return m.presentationAnchorIndex(line) < 0
+			}
+			offset += pos + len(anchor)
 		}
+		return false
 	} else if bytes.ContainsAny(line, m.rawAnchors) {
 		return false
 	}
 	return bytes.IndexByte(line, 0xef) < 0
+}
+
+// FirstPossibleRawByteIndex finds the earliest byte that could belong to a
+// matching line. A negative result proves that every complete line in data
+// can be skipped. The single invariant Arabic anchor has a two-byte UTF-8
+// encoding; EF may begin a presentation form that expands to the anchor.
+// Other patterns return zero so callers inspect the whole block normally.
+func (m *literalMatcher) FirstPossibleRawByteIndex(data []byte) int {
+	if len(m.anchorBytes) != 2 {
+		return 0
+	}
+	anchor := bytes.Index(data, m.anchorBytes)
+	possiblePresentation := data
+	if anchor >= 0 {
+		possiblePresentation = data[:anchor]
+	}
+	if bytes.IndexByte(possiblePresentation, 0xef) >= 0 {
+		if presentation := m.presentationAnchorIndex(possiblePresentation); presentation >= 0 {
+			return presentation
+		}
+	}
+	return anchor
+}
+
+func (m *literalMatcher) presentationAnchorIndex(data []byte) int {
+	if !m.profile.FoldPresentation {
+		return -1
+	}
+	for offset := 0; offset < len(data); {
+		i := bytes.IndexByte(data[offset:], 0xef)
+		if i < 0 {
+			return -1
+		}
+		offset += i
+		r, _ := utf8.DecodeRune(data[offset:])
+		if arabic.PresentationFormContains(r, m.anchorRune) {
+			return offset
+		}
+		offset++
+	}
+	return -1
+}
+
+func (m *literalMatcher) presentationAnchorIndexString(data string) int {
+	if !m.profile.FoldPresentation {
+		return -1
+	}
+	for offset := 0; offset < len(data); {
+		i := strings.IndexByte(data[offset:], 0xef)
+		if i < 0 {
+			return -1
+		}
+		offset += i
+		r, _ := utf8.DecodeRuneInString(data[offset:])
+		if arabic.PresentationFormContains(r, m.anchorRune) {
+			return offset
+		}
+		offset++
+	}
+	return -1
 }
 
 func stableRawKeys(keys, queries []string, p arabic.Profile, ignoreCase bool) []string {
@@ -262,6 +364,7 @@ func stableRawKeys(keys, queries []string, p arabic.Profile, ignoreCase bool) []
 
 func rawStarter(r rune) bool {
 	return (r >= 'ا' && r <= 'ي') ||
+		r == 'ی' ||
 		(r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') ||
 		(r >= '0' && r <= '9')
 }

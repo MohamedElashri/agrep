@@ -128,6 +128,9 @@ jobs:
       - name: Fuzz raw literal shortcut soundness
         run: go test -run '^$' -fuzz '^FuzzStableRawMatchImpliesNormalizedMatch$' -fuzztime 20s ./match
 
+      - name: Fuzz raw rejection soundness
+        run: go test -run '^$' -fuzz '^FuzzRawRejectionImpliesNoNormalizedMatch$' -fuzztime 20s ./match
+
       - name: Fuzz regex matcher no panic
         run: go test -run '^$' -fuzz '^FuzzNewRegexNoPanic$' -fuzztime 20s ./match
 
@@ -139,6 +142,9 @@ jobs:
 
       - name: Fuzz search no panic
         run: go test -run '^$' -fuzz '^FuzzSearchNoPanic$' -fuzztime 20s ./scan
+
+      - name: Fuzz summary search against per-line search
+        run: go test -run '^$' -fuzz '^FuzzSummaryMatchesPerLine$' -fuzztime 20s ./scan
 
       - name: Fuzz mapped search no panic
         run: go test -run '^$' -fuzz '^FuzzSearchMappedNoPanic$' -fuzztime 20s ./scan

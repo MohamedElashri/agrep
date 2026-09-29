@@ -12,6 +12,7 @@ import (
 
 	"github.com/MohamedElashri/agrep/arabic"
 	"github.com/MohamedElashri/agrep/match"
+	simdutf8 "github.com/segmentio/asm/utf8"
 )
 
 // ErrInvalidUTF8 identifies input that must be decoded before Search. The CLI
@@ -79,6 +80,15 @@ func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) erro
 	if opts.ExistenceOnly && (opts.BeforeContext > 0 || opts.AfterContext > 0) {
 		return false, errors.New("scan: ExistenceOnly cannot be combined with context")
 	}
+	if opts.OmitText && opts.MaxLineBytes == 0 && !opts.InvertMatch &&
+		!opts.WordRegexp && !opts.MapSpans && opts.BeforeContext == 0 && opts.AfterContext == 0 {
+		if negative, ok := m.(interface {
+			CannotMatchRawBytes([]byte) bool
+			FirstPossibleRawByteIndex([]byte) int
+		}); ok {
+			return searchSummary(r, m, opts, negative, onMatch)
+		}
+	}
 	reader := bufio.NewReader(r)
 	profile := m.Profile()
 	var lineNumber int64
@@ -113,7 +123,7 @@ func Search(r io.Reader, m match.Matcher, opts Options, onMatch func(Match) erro
 		}
 
 		lineNumber++
-		if !utf8.Valid(line) {
+		if !simdutf8.Valid(line) {
 			return false, fmt.Errorf("%w on line %d", ErrInvalidUTF8, lineNumber)
 		}
 		if opts.ExistenceOnly && found {

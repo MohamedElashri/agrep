@@ -2,6 +2,13 @@ package arabic
 
 import "strings"
 
+// PresentationFormContains reports whether expanding r introduces target.
+// Raw-search filters use it to inspect presentation forms without
+// normalizing the entire line.
+func PresentationFormContains(r, target rune) bool {
+	return strings.ContainsRune(presentationForms[r], target)
+}
+
 // expandPresentationForms replaces every rune found in the generated
 // presentationForms table with its letter-sequence expansion, leaving
 // everything else untouched. It runs before NFD decomposition in
