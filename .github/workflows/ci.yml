@@ -4,7 +4,25 @@ on:
   push:
     branches:
       - "**"
+    paths-ignore:
+      - "*.md"
+      - "**/*.md"
+      - "docs/**"
+      - ".agents/**"
+      - ".claude/**"
+      - "LICENSE"
+      - ".gitignore"
+      - ".github/dependabot.yml"
   pull_request:
+    paths-ignore:
+      - "*.md"
+      - "**/*.md"
+      - "docs/**"
+      - ".agents/**"
+      - ".claude/**"
+      - "LICENSE"
+      - ".gitignore"
+      - ".github/dependabot.yml"
 
 permissions:
   contents: read
