@@ -885,4 +885,3 @@ func runUpdate(targetTag string, stdout, stderr io.Writer) int {
 	}
 	return 0
 }
-

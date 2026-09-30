@@ -47,7 +47,7 @@ func extractBinaryFromTarGz(r io.Reader, binaryName string, dest io.Writer) erro
 			return fmt.Errorf("archive contains unsafe path: %q", hdr.Name)
 		}
 
-		if hdr.Typeflag != tar.TypeReg && hdr.Typeflag != tar.TypeRegA {
+		if hdr.Typeflag != tar.TypeReg {
 			continue
 		}
 

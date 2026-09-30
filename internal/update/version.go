@@ -132,9 +132,10 @@ func parseVersionNumber(s string) (int, error) {
 
 // Compare compares two versions according to SemVer 2.0.0 precedence rules.
 // Returns:
-//   -1 if a < b
-//    0 if a == b
-//    1 if a > b
+//
+//	-1 if a < b
+//	 0 if a == b
+//	 1 if a > b
 func Compare(a, b Version) int {
 	if a.Major != b.Major {
 		if a.Major < b.Major {
