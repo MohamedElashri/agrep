@@ -20,37 +20,39 @@ With no path, `agrep` reads standard input. Pass `-` as a path argument to mix s
 
 ## Install
 
-### Shell Script (macOS, Linux, BSD)
+### Quick Install (macOS, Linux, BSD)
+
+Install the latest pre-compiled binary via the automated installer script:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/MohamedElashri/agrep/main/scripts/install.sh | bash
 ```
 
-### Homebrew (macOS & Linux)
+Custom installation directory (e.g., `~/.local/bin`):
 
 ```sh
-brew install MohamedElashri/tap/agrep
-```
-
-### Arch Linux (AUR)
-
-```sh
-yay -S agrep-bin
-```
-
-### Go Install
-
-```sh
-go install github.com/MohamedElashri/agrep/cmd/agrep@v0.1.0
+BINDIR=~/.local/bin curl -fsSL https://raw.githubusercontent.com/MohamedElashri/agrep/main/scripts/install.sh | bash
 ```
 
 ### Pre-compiled Binaries
 
 Download standalone archives for Linux, macOS, FreeBSD, OpenBSD, and NetBSD (`amd64`, `arm64`) from [GitHub Releases](https://github.com/MohamedElashri/agrep/releases/tag/v0.1.0), and verify hashes against `checksums.txt`.
 
+Using GitHub CLI:
 ```sh
-# GitHub CLI
 gh release download v0.1.0 -R MohamedElashri/agrep
+```
+
+Direct download (Linux amd64 example):
+```sh
+curl -fsSL https://github.com/MohamedElashri/agrep/releases/download/v0.1.0/agrep_0.1.0_linux_amd64.tar.gz | tar -xz
+sudo mv agrep /usr/local/bin/
+```
+
+### Go Toolchain
+
+```sh
+go install github.com/MohamedElashri/agrep/cmd/agrep@v0.1.0
 ```
 
 ### Build from Source
