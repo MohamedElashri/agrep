@@ -1,81 +1,107 @@
 # agrep
 
+[![Release](https://img.shields.io/github/v/release/MohamedElashri/agrep?color=0284c7&label=release)](https://github.com/MohamedElashri/agrep/releases)
 [![CI](https://github.com/MohamedElashri/agrep/actions/workflows/ci.yml/badge.svg)](https://github.com/MohamedElashri/agrep/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/MohamedElashri/agrep.svg)](https://pkg.go.dev/github.com/MohamedElashri/agrep)
+[![Playground](https://img.shields.io/badge/Playground-Live%20Demo-10b981?logo=webassembly&logoColor=white)](https://mohamedelashri.github.io/agrep/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-`agrep` searches Arabic-script text across spelling and Unicode variants. It can
-ignore diacritics, fold common letter forms, search transliterated queries, and
-return original-text spans as JSON Lines.
+`agrep` is an ultrafast, Unicode-aware search tool tailored for Arabic-script text. It matches across spelling variants, diacritics (*tashkil*), letter forms, consonant skeletons (*rasm*), and transliterated queries while preserving original source lines and exact byte offsets.
+
+```sh
+# Matches across diacritics, alef forms, and ta-marbuta:
+agrep 'مدرسه' book.txt                         # matches مَدْرَسَة and مدرسة
+agrep -r -n --include '*.txt' 'كتاب' books/    # recursive search with line numbers
+agrep --translit=buckwalter 'ktAb' corpus.txt  # Latin keyboard query → كتاب
+agrep --json 'احمد' people.txt                 # JSON Lines with exact byte spans
+```
+
+With no path, `agrep` reads standard input. Pass `-` as a path argument to mix standard input with files. Exit status follows standard grep conventions: `0` for match, `1` for no match, and `2` for an error.
 
 ## Install
 
-Download the archive for your operating system from
-[GitHub Releases](https://github.com/MohamedElashri/agrep/releases), verify its
-SHA-256 hash against `checksums.txt`, extract it, and put `agrep` on your `PATH`.
-Check the installation with `agrep --version`.
+### Quick Install (macOS, Linux, BSD)
 
-With Go installed, you can also install the latest published version:
+Install the latest pre-compiled binary via the automated installer script:
 
 ```sh
-go install github.com/MohamedElashri/agrep/cmd/agrep@latest
+curl -fsSL https://raw.githubusercontent.com/MohamedElashri/agrep/main/scripts/install.sh | bash
 ```
 
-The standard binary searches text files. HTML and EPUB extraction requires a
-[source build with `-tags formats`](docs/INPUT.md#optional-html-and-epub-extraction).
-
-## Start searching
+Custom installation directory (e.g., `~/.local/bin`):
 
 ```sh
-agrep 'مدرسه' book.txt                         # also finds مَدْرَسَة
-agrep -r -n --include '*.txt' 'كتاب' books/    # recursive search
-agrep --translit=buckwalter 'ktAb' corpus.txt  # Latin keyboard → كتاب
-agrep --json 'احمد' people.txt                 # JSON Lines with byte spans
+BINDIR=~/.local/bin curl -fsSL https://raw.githubusercontent.com/MohamedElashri/agrep/main/scripts/install.sh | bash
 ```
 
-With no path, `agrep` reads standard input. Use `-` as a path to mix standard
-input with files. Exit status is `0` for a selection, `1` for none, and `2` for
-an error.
+### Pre-compiled Binaries
 
-## Choose a search mode
+Download standalone archives for Linux, macOS, FreeBSD, OpenBSD, and NetBSD (`amd64`, `arm64`) from [GitHub Releases](https://github.com/MohamedElashri/agrep/releases/tag/v0.1.0), and verify hashes against `checksums.txt`.
+
+Using GitHub CLI:
+```sh
+gh release download v0.1.0 -R MohamedElashri/agrep
+```
+
+Direct download (Linux amd64 example):
+```sh
+curl -fsSL https://github.com/MohamedElashri/agrep/releases/download/v0.1.0/agrep_0.1.0_linux_amd64.tar.gz | tar -xz
+sudo mv agrep /usr/local/bin/
+```
+
+### Go Toolchain
+
+```sh
+go install github.com/MohamedElashri/agrep/cmd/agrep@v0.1.0
+```
+
+### Build from Source
+
+```sh
+git clone https://github.com/MohamedElashri/agrep.git
+cd agrep && go build -ldflags="-s -w" ./cmd/agrep
+```
+
+HTML and EPUB extraction can be included by adding `-tags formats` during compilation. See [INPUT.md](docs/INPUT.md#optional-html-and-epub-extraction).
+
+## Search modes
 
 | Need | Option | Detail |
-| --- | --- | --- |
-| Exact spelling distinctions | `--profile=strict` | Keeps hamza, ta-marbuta, and alef-maksura distinct. |
-| More recall | `--profile=loose` or `--rasm` | Can produce extra matches. |
-| Misspellings or OCR errors | `--fuzzy[=N]` | Edit distance over normalized Unicode codepoints. |
-| Regular expressions | `--regex` | Pattern syntax is evaluated over normalized text. |
-| Persian, Urdu, and other orthographies | `--lang=fa`, `--lang=ar,fa`, etc. | Selects language-specific equivalences. |
-| Legacy files | `--encoding=auto` or an explicit encoding | Decodes before searching. |
+| :--- | :--- | :--- |
+| Exact spelling distinctions | `--profile=strict` | Keeps hamza, ta-marbuta, and alef-maksura distinct |
+| High recall / skeleton | `--profile=loose` or `--rasm` | Folds consonants to dotless skeletons |
+| Typographical / OCR errors | `--fuzzy[=N]` | Levenshtein edit distance over normalized codepoints |
+| Regular expressions | `--regex` | Pattern syntax evaluated over normalized text |
+| Non-Arabic orthographies | `--lang=fa`, `--lang=ur`, etc. | Language-specific equivalences (Persian, Urdu, Kurdish) |
+| Legacy encodings | `--encoding=auto` | Automatic CP1256, ISO-8859-6, and UTF-16 decoding |
 
-The matching line is displayed with its original spelling. JSON `spans` and
-`-o` refer to decoded UTF-8 byte offsets in that original line.
+The matching line is always printed with its original source spelling. Emitted JSON `spans` and `-o` refer to decoded UTF-8 byte offsets in that original line.
 
-## Reference
+## Documentation
 
-- [All CLI options and output formats](docs/CLI.md)
-- [Normalization rules and profiles](docs/NORMALIZATION.md)
-- [Languages](docs/LANGUAGES.md), [rasm and fuzzy matching](docs/MATCHING.md),
-  [encodings and transliteration](docs/INPUT.md)
-- [Terminal color](docs/TERMINALS.md) and [normalization playground](docs/PLAYGROUND.md)
-- [Benchmarks](docs/BENCHMARKS.md) and [development](docs/DEVELOPMENT.md)
-- [Agent search skill for Codex](.agents/skills/agrep-search/SKILL.md) and [Claude Code](.claude/skills/agrep-search/SKILL.md)
+| Topic | Document | Description |
+| :--- | :--- | :--- |
+| CLI Reference | [CLI.md](docs/CLI.md) | Full list of flags, options, and JSON Lines format |
+| Normalization | [NORMALIZATION.md](docs/NORMALIZATION.md) | Unicode rules and profiles (`search`, `strict`, `loose`, `lucene`, `camel`) |
+| Matching Engines | [MATCHING.md](docs/MATCHING.md) | Dotless rasm, Myers fuzzy Levenshtein distance, regex |
+| Languages & Encodings | [LANGUAGES.md](docs/LANGUAGES.md), [INPUT.md](docs/INPUT.md) | Persian, Urdu, Kurdish orthographies and transliteration |
+| Web Playground | [PLAYGROUND.md](docs/PLAYGROUND.md) | [Live interactive demo](https://mohamedelashri.github.io/agrep/) running in WebAssembly |
+| Benchmarks | [BENCHMARKS.md](docs/BENCHMARKS.md) | Performance metrics and comparison suites |
+| Agent Integration | [Agent Skill](.agents/skills/agrep-search/SKILL.md) | Ready-to-use search skill for Codex and Claude Code |
 
 ## Go packages
 
-`arabic` normalizes text, `match` builds reusable literal, regex, or fuzzy
-matchers, and `scan` streams matching lines. The CLI uses the same packages.
+`agrep` is also available as modular Go packages: `arabic` for Unicode normalization, `match` for literal, regex, and fuzzy engines, and `scan` for line-by-line streaming.
 
 ```go
 import "github.com/MohamedElashri/agrep/arabic"
 
+// Normalized comparison treats diacritics and letter variants as equivalent:
 same := arabic.Normalize("مَدْرَسَةٌ") == arabic.Normalize("مدرسه") // true
-_ = same
 ```
 
-See the package documentation for
-[`arabic`](https://pkg.go.dev/github.com/MohamedElashri/agrep/arabic),
-[`match`](https://pkg.go.dev/github.com/MohamedElashri/agrep/match), and
-[`scan`](https://pkg.go.dev/github.com/MohamedElashri/agrep/scan).
+Documentation: [`arabic`](https://pkg.go.dev/github.com/MohamedElashri/agrep/arabic) · [`match`](https://pkg.go.dev/github.com/MohamedElashri/agrep/match) · [`scan`](https://pkg.go.dev/github.com/MohamedElashri/agrep/scan).
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT License. See [LICENSE](LICENSE).
