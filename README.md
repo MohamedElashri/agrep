@@ -46,7 +46,7 @@ go install github.com/MohamedElashri/agrep/cmd/agrep@v0.1.0
 
 ### Pre-compiled Binaries
 
-Download standalone archives for Linux, macOS, FreeBSD, OpenBSD, and NetBSD (`amd64`, `arm64`) from [GitHub Releases](https://github.com/MohamedElashri/agrep/releases/tag/v0.1.0), and verify hashes against `checksums.txt`.
+Download standalone archives for Linux, macOS, Windows, FreeBSD, OpenBSD, and NetBSD (`amd64`, `arm64`) from [GitHub Releases](https://github.com/MohamedElashri/agrep/releases/tag/v0.1.0), and verify hashes against `checksums.txt`.
 
 ```sh
 # GitHub CLI

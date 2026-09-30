@@ -104,4 +104,12 @@ func TestClientRateLimitFallback(t *testing.T) {
 	if asset.Name != "agrep_0.3.0_linux_arm64.tar.gz" {
 		t.Errorf("expected agrep_0.3.0_linux_arm64.tar.gz, got %s", asset.Name)
 	}
+
+	winAsset, err := client.FindAsset(rel, "windows", "amd64")
+	if err != nil {
+		t.Fatalf("FindAsset for windows failed: %v", err)
+	}
+	if winAsset.Name != "agrep_0.3.0_windows_amd64.zip" {
+		t.Errorf("expected agrep_0.3.0_windows_amd64.zip, got %s", winAsset.Name)
+	}
 }

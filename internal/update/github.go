@@ -217,7 +217,11 @@ func (c *Client) FindAsset(rel *Release, goos, goarch string) (*Asset, error) {
 
 	// If no matching asset found in API assets list, or if assets was empty (e.g. fallback mode),
 	// generate the standard GoReleaser asset name and URL
-	tarballName := fmt.Sprintf("agrep_%s_%s_%s.tar.gz", cleanVer, goos, goarch)
+	ext := "tar.gz"
+	if strings.ToLower(goos) == "windows" {
+		ext = "zip"
+	}
+	tarballName := fmt.Sprintf("agrep_%s_%s_%s.%s", cleanVer, goos, goarch, ext)
 	downloadURL := fmt.Sprintf("%s/%s/releases/download/%s/%s",
 		strings.TrimRight(c.BaseHTMLURL, "/"), c.Repo, rel.TagName, tarballName)
 
