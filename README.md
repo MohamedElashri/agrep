@@ -36,7 +36,7 @@ BINDIR=~/.local/bin curl -fsSL https://raw.githubusercontent.com/MohamedElashri/
 
 ### Pre-compiled Binaries
 
-Download standalone archives for Linux, macOS, FreeBSD, OpenBSD, and NetBSD (`amd64`, `arm64`) from [GitHub Releases](https://github.com/MohamedElashri/agrep/releases/tag/v0.1.0), and verify hashes against `checksums.txt`.
+Download standalone archives for Linux, macOS, Windows, FreeBSD, OpenBSD, and NetBSD (`amd64`, `arm64`) from [GitHub Releases](https://github.com/MohamedElashri/agrep/releases/tag/v0.1.0), and verify hashes against `checksums.txt`.
 
 Using GitHub CLI:
 ```sh
@@ -63,6 +63,16 @@ cd agrep && go build -ldflags="-s -w" ./cmd/agrep
 ```
 
 HTML and EPUB extraction can be included by adding `-tags formats` during compilation. See [INPUT.md](docs/INPUT.md#optional-html-and-epub-extraction).
+
+### Updating
+
+Check for new releases or self-update in place:
+
+```sh
+agrep --check-update    # check if a newer release is available
+agrep --update          # download, verify, and update in place
+agrep --update=v0.2.0   # update or switch to a specific version
+```
 
 ## Search modes
 
