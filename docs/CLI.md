@@ -82,6 +82,16 @@ Overrides apply on top of the selected profile. See the
 [normalization reference](NORMALIZATION.md) for exact codepoints and the
 [language reference](LANGUAGES.md) for cross-language behavior.
 
+## Updates
+
+| Option | Effect |
+| --- | --- |
+| `--check-update` | Check GitHub for the latest release and report whether an update is available. |
+| `--update` | Self-update agrep in place to the latest release. |
+| `--update=TAG` | Update or switch agrep in place to a specific release tag (e.g. `v0.2.0`). |
+
+The updater securely checks and verifies the SHA-256 checksum against official release `checksums.txt` before applying the update. Executable replacement is atomic. If `GITHUB_TOKEN` or `GH_TOKEN` is present in the environment, it is sent with requests to avoid rate limits, with automatic fallback to release redirect resolution.
+
 `--help` prints the built-in help; `--version` prints the build version. Exit
 status is `0` when something is selected, `1` when nothing is selected, and `2`
 for an argument, input, or output error.

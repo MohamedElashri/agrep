@@ -62,6 +62,16 @@ cd agrep && go build -ldflags="-s -w" ./cmd/agrep
 
 HTML and EPUB extraction can be included by adding `-tags formats` during compilation. See [INPUT.md](docs/INPUT.md#optional-html-and-epub-extraction).
 
+### Updating
+
+Check for new releases or self-update in place:
+
+```sh
+agrep --check-update    # check if a newer release is available
+agrep --update          # download, verify, and update in place
+agrep --update=v0.2.0   # update or switch to a specific version
+```
+
 ## Search modes
 
 | Need | Option | Detail |

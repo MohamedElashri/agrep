@@ -3,19 +3,23 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/MohamedElashri/agrep/arabic"
 	"github.com/MohamedElashri/agrep/internal/decode"
 	"github.com/MohamedElashri/agrep/internal/inputformat"
 	"github.com/MohamedElashri/agrep/internal/translit"
+	"github.com/MohamedElashri/agrep/internal/update"
 	"github.com/MohamedElashri/agrep/internal/walk"
 	"github.com/MohamedElashri/agrep/match"
 	"github.com/MohamedElashri/agrep/scan"
@@ -75,6 +79,8 @@ Normalization options:
       --fold-digits               fold Arabic-Indic/Extended Arabic-Indic digits to ASCII
       --fold-punctuation          fold Arabic punctuation to ASCII
       --version                   print version and exit
+      --check-update              check GitHub for newer releases
+      --update[=TAG]              update agrep to the latest release (or specified tag)
       --help                      show this help
 
 Profiles:
@@ -159,6 +165,8 @@ type cliOptions struct {
 	overrides         profileOverrides
 	showHelp          bool
 	showVersion       bool
+	checkUpdate       bool
+	update            updateFlag
 	recursive         bool
 	ignoreCase        bool
 	invertMatch       bool
@@ -211,6 +219,12 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	opts, positional, code := parseArgs(args, stdout, stderr)
 	if code >= 0 {
 		return code
+	}
+	if opts.checkUpdate {
+		return runCheckUpdate(stdout, stderr)
+	}
+	if opts.update.enabled {
+		return runUpdate(opts.update.tag, stdout, stderr)
 	}
 
 	queries, paths, err := resolveOperands(opts.patterns, positional)
@@ -570,6 +584,15 @@ func resolveProfile(name string, o profileOverrides) (arabic.Profile, error) {
 }
 
 func parseArgs(args []string, stdout, stderr io.Writer) (cliOptions, []string, int) {
+	if len(args) > 0 && args[0] == "self-update" {
+		if len(args) == 1 {
+			args = []string{"--update"}
+		} else if args[1] == "--check" || args[1] == "check" || args[1] == "-c" {
+			args = []string{"--check-update"}
+		} else {
+			args = append([]string{"--update"}, args[1:]...)
+		}
+	}
 	opts := cliOptions{threads: runtime.GOMAXPROCS(0)}
 	fs := flag.NewFlagSet("agrep", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -632,6 +655,8 @@ func parseArgs(args []string, stdout, stderr io.Writer) (cliOptions, []string, i
 	fs.BoolVar(&opts.overrides.foldPunctuation, "fold-punctuation", false, "fold Arabic punctuation to ASCII")
 	fs.BoolVar(&opts.showHelp, "help", false, "show help")
 	fs.BoolVar(&opts.showVersion, "version", false, "print version")
+	fs.BoolVar(&opts.checkUpdate, "check-update", false, "check for newer releases")
+	fs.Var(&opts.update, "update", "update agrep to latest release or specified tag")
 
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -647,6 +672,15 @@ func parseArgs(args []string, stdout, stderr io.Writer) (cliOptions, []string, i
 	if opts.showVersion {
 		fmt.Fprintf(stdout, "agrep %s\n", version)
 		return opts, nil, 0
+	}
+	if opts.update.enabled && opts.update.tag == "" && len(fs.Args()) > 0 {
+		first := fs.Args()[0]
+		if !strings.HasPrefix(first, "-") {
+			opts.update.tag = first
+		}
+	}
+	if opts.checkUpdate || opts.update.enabled {
+		return opts, nil, -1
 	}
 	if opts.threads < 1 {
 		fmt.Fprintln(stderr, "agrep: --threads must be at least 1")
@@ -762,3 +796,93 @@ func (f filenameFlag) Set(value string) error {
 	}
 	return nil
 }
+
+type updateFlag struct {
+	enabled bool
+	tag     string
+}
+
+func (u *updateFlag) String() string {
+	if !u.enabled {
+		return "false"
+	}
+	if u.tag == "" {
+		return "true"
+	}
+	return u.tag
+}
+
+func (u *updateFlag) IsBoolFlag() bool { return true }
+
+func (u *updateFlag) Set(value string) error {
+	switch value {
+	case "true":
+		u.enabled = true
+		u.tag = ""
+		return nil
+	case "false":
+		u.enabled = false
+		u.tag = ""
+		return nil
+	default:
+		u.enabled = true
+		u.tag = value
+		return nil
+	}
+}
+
+var newUpdater = func(v string) *update.Updater {
+	return update.New(v)
+}
+
+func runCheckUpdate(stdout, stderr io.Writer) int {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
+	updater := newUpdater(version)
+	fmt.Fprintf(stdout, "Checking for updates (current version: %s)...\n", updater.CurrentVersion)
+	res, err := updater.Check(ctx)
+	if err != nil {
+		fmt.Fprintf(stderr, "agrep: check update failed: %v\n", err)
+		return 2
+	}
+
+	if res.IsDev {
+		fmt.Fprintf(stdout, "agrep is running a development build (%s).\n", updater.CurrentVersion)
+		fmt.Fprintf(stdout, "Latest release is %s.\n", res.LatestVersion)
+		if res.Release != nil && res.Release.HTMLURL != "" {
+			fmt.Fprintf(stdout, "Release notes: %s\n", res.Release.HTMLURL)
+		}
+		fmt.Fprintf(stdout, "To install the latest release, run:\n  agrep --update\n")
+		return 0
+	}
+
+	if res.UpdateAvailable {
+		fmt.Fprintf(stdout, "A new version of agrep is available: %s -> %s\n", updater.CurrentVersion, res.LatestVersion)
+		if res.Release != nil && res.Release.HTMLURL != "" {
+			fmt.Fprintf(stdout, "Release notes: %s\n", res.Release.HTMLURL)
+		}
+		fmt.Fprintf(stdout, "To update, run:\n  agrep --update\n")
+	} else {
+		fmt.Fprintf(stdout, "agrep is up to date (%s).\n", updater.CurrentVersion)
+	}
+	return 0
+}
+
+func runUpdate(targetTag string, stdout, stderr io.Writer) int {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
+	updater := newUpdater(version)
+	opts := update.UpdateOptions{
+		TargetTag:    targetTag,
+		StatusWriter: stdout,
+	}
+	_, err := updater.Update(ctx, opts)
+	if err != nil {
+		fmt.Fprintf(stderr, "agrep: update failed: %v\n", err)
+		return 2
+	}
+	return 0
+}
+
