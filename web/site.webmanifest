@@ -1,0 +1,16 @@
+{
+  "name": "agrep · Arabic-Script Search",
+  "short_name": "agrep",
+  "description": "Ultrafast Unicode-aware search tool tailored for Arabic-script text and corpora.",
+  "start_url": "/agrep/",
+  "display": "standalone",
+  "background_color": "#0c1a1b",
+  "theme_color": "#36b890",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

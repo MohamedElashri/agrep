@@ -107,6 +107,33 @@ Here is the body.
             self.assertIn('id="profile"', playground_content)
             self.assertIn('id="key"', playground_content)
 
+            # Check SEO assets and meta tags
+            self.assertTrue((out_dir / "sitemap.xml").exists())
+            sitemap_xml = (out_dir / "sitemap.xml").read_text(encoding="utf-8")
+            self.assertIn("<urlset", sitemap_xml)
+            self.assertIn("https://mohamedelashri.github.io/agrep/", sitemap_xml)
+            self.assertIn("https://mohamedelashri.github.io/agrep/docs/cli.html", sitemap_xml)
+
+            self.assertTrue((out_dir / "robots.txt").exists())
+            robots_txt = (out_dir / "robots.txt").read_text(encoding="utf-8")
+            self.assertIn("Sitemap: https://mohamedelashri.github.io/agrep/sitemap.xml", robots_txt)
+
+            self.assertTrue((out_dir / "favicon.svg").exists())
+            self.assertTrue((out_dir / "og-image.svg").exists())
+            self.assertTrue((out_dir / "site.webmanifest").exists())
+
+            # Check SEO in Landing HTML
+            self.assertIn('property="og:site_name"', landing_content)
+            self.assertIn('name="twitter:card"', landing_content)
+            self.assertIn('rel="canonical"', landing_content)
+            self.assertIn('application/ld+json', landing_content)
+
+            # Check SEO in Doc HTML
+            norm_content = norm_doc.read_text(encoding="utf-8")
+            self.assertIn('property="og:type" content="article"', norm_content)
+            self.assertIn('application/ld+json', norm_content)
+            self.assertIn('BreadcrumbList', norm_content)
+
 
 if __name__ == "__main__":
     unittest.main()

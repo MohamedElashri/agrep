@@ -34,6 +34,51 @@ CATEGORY_ORDER = [
     "Contributing & Project",
 ]
 
+SITE_URL = "https://mohamedelashri.github.io/agrep"
+DEFAULT_KEYWORDS = (
+    "agrep, arabic search, arabic grep, unicode normalization, ripgrep, grep, "
+    "tashkil, rasm, dotless rasm, persian search, urdu search, pashto, kurdish, "
+    "uyghur, buckwalter, fuzzy search, cli, go, open source"
+)
+
+
+def generate_sitemap(flat_list: list[dict]) -> str:
+    """Generate XML sitemap conforming to sitemaps.org protocol."""
+    entries = [
+        (f"{SITE_URL}/", "1.0", "weekly"),
+        (f"{SITE_URL}/docs/", "0.9", "weekly"),
+        (f"{SITE_URL}/playground/", "0.9", "weekly"),
+    ]
+    for doc in flat_list:
+        if doc["filename"] != "index.html":
+            entries.append((f"{SITE_URL}/docs/{doc['filename']}", "0.8", "weekly"))
+
+    items = []
+    for loc, priority, freq in entries:
+        items.append(
+            f"  <url>\n"
+            f"    <loc>{loc}</loc>\n"
+            f"    <changefreq>{freq}</changefreq>\n"
+            f"    <priority>{priority}</priority>\n"
+            f"  </url>"
+        )
+
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        + "\n".join(items)
+        + "\n</urlset>\n"
+    )
+
+
+def generate_robots_txt() -> str:
+    """Generate robots.txt allowing indexing and pointing to sitemap."""
+    return f"""User-agent: *
+Allow: /
+
+Sitemap: {SITE_URL}/sitemap.xml
+"""
+
 
 def slugify(text: str) -> str:
     """Generate a URL-friendly anchor slug from heading text."""
@@ -486,13 +531,98 @@ def render_doc_page(
             f'</a>'
         )
 
+    page_url = f"{SITE_URL}/docs/{current_filename}" if current_filename != "index.html" else f"{SITE_URL}/docs/"
+    page_title = f"{doc['title']} · agrep Docs"
+    page_desc = doc.get('description', '') or f"Documentation and guide for {doc['title']} in agrep Arabic-script search tool."
+    page_keywords = f"agrep, {doc['title'].lower()}, {doc.get('category', '').lower()}, arabic search, unicode normalization, cli, go, search engine"
+
+    json_ld = {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "TechArticle",
+                "headline": doc["title"],
+                "description": page_desc,
+                "url": page_url,
+                "inLanguage": "en",
+                "author": {
+                    "@type": "Person",
+                    "name": "Mohamed Elashri",
+                    "url": "https://github.com/MohamedElashri",
+                },
+                "publisher": {
+                    "@type": "Organization",
+                    "name": "agrep",
+                    "url": f"{SITE_URL}/",
+                },
+            },
+            {
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    {
+                        "@type": "ListItem",
+                        "position": 1,
+                        "name": "Home",
+                        "item": f"{SITE_URL}/",
+                    },
+                    {
+                        "@type": "ListItem",
+                        "position": 2,
+                        "name": "Docs",
+                        "item": f"{SITE_URL}/docs/",
+                    },
+                    {
+                        "@type": "ListItem",
+                        "position": 3,
+                        "name": doc.get("category", "Guide"),
+                        "item": page_url,
+                    },
+                ],
+            },
+        ],
+    }
+
     return f"""<!doctype html>
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{html.escape(doc['title'])} · agrep Docs</title>
-  <meta name="description" content="{html.escape(doc.get('description', ''))}">
+  <title>{html.escape(page_title)}</title>
+  <meta name="description" content="{html.escape(page_desc)}">
+  <meta name="keywords" content="{html.escape(page_keywords)}">
+  <meta name="author" content="Mohamed Elashri">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="{page_url}">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="manifest" href="../site.webmanifest">
+  <meta name="theme-color" content="#0c1a1b" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f6f5ef" media="(prefers-color-scheme: light)">
+
+  <!-- Open Graph / Social Sharing -->
+  <meta property="og:site_name" content="agrep">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="{html.escape(page_title)}">
+  <meta property="og:description" content="{html.escape(page_desc)}">
+  <meta property="og:url" content="{page_url}">
+  <meta property="og:image" content="{SITE_URL}/og-image.svg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="agrep documentation: {html.escape(doc['title'])}">
+  <meta property="og:locale" content="en_US">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@MohamedElashri">
+  <meta name="twitter:creator" content="@MohamedElashri">
+  <meta name="twitter:title" content="{html.escape(page_title)}">
+  <meta name="twitter:description" content="{html.escape(page_desc)}">
+  <meta name="twitter:image" content="{SITE_URL}/og-image.svg">
+
+  <!-- Structured Data (JSON-LD) -->
+  <script type="application/ld+json">
+{json.dumps(json_ld, indent=2)}
+  </script>
+
   <link rel="stylesheet" href="../site.css">
   <link rel="stylesheet" href="docs.css">
 </head>
@@ -599,13 +729,82 @@ def render_doc_page(
 
 def render_landing_page() -> str:
     """Render the high-impact agrep Landing Page."""
-    return """<!doctype html>
+    json_ld = {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "SoftwareApplication",
+                "name": "agrep",
+                "headline": "Ultrafast Unicode-Aware Search for Arabic-Script Text",
+                "description": "agrep is an ultrafast, Unicode-aware search tool and Go library tailored for Arabic, Persian, Urdu, Pashto, Sorani Kurdish, and Uyghur text.",
+                "applicationCategory": "DeveloperApplication",
+                "applicationSubCategory": "Search CLI",
+                "operatingSystem": "Linux, macOS, Windows, FreeBSD, OpenBSD, NetBSD",
+                "softwareVersion": "0.1.1",
+                "license": "https://opensource.org/licenses/MIT",
+                "url": f"{SITE_URL}/",
+                "codeRepository": "https://github.com/MohamedElashri/agrep",
+                "author": {
+                    "@type": "Person",
+                    "name": "Mohamed Elashri",
+                    "url": "https://github.com/MohamedElashri",
+                },
+                "offers": {
+                    "@type": "Offer",
+                    "price": "0",
+                    "priceCurrency": "USD",
+                },
+            },
+            {
+                "@type": "WebSite",
+                "name": "agrep",
+                "url": f"{SITE_URL}/",
+                "description": "Official landing page, documentation, and WebAssembly playground for agrep.",
+            },
+        ],
+    }
+
+    html_str = """<!doctype html>
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>agrep · Ultrafast Unicode-Aware Search for Arabic-Script Text</title>
   <meta name="description" content="agrep is a high-performance CLI search tool and Go library built specifically for Arabic, Persian, Urdu, Pashto, Kurdish, and Uyghur text. Matches across diacritics, ligatures, and consonant skeletons.">
+  <meta name="keywords" content="__KEYWORDS__">
+  <meta name="author" content="Mohamed Elashri">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="__SITE_URL__/">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="manifest" href="site.webmanifest">
+  <meta name="theme-color" content="#0c1a1b" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f6f5ef" media="(prefers-color-scheme: light)">
+
+  <!-- Open Graph / Social Sharing -->
+  <meta property="og:site_name" content="agrep">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="agrep · Ultrafast Unicode-Aware Search for Arabic-Script Text">
+  <meta property="og:description" content="Ultrafast, Unicode-aware search tool tailored for Arabic-script text. Matches across diacritics, letter variants, ligatures, and dotless rasm with exact source byte mapping.">
+  <meta property="og:url" content="__SITE_URL__/">
+  <meta property="og:image" content="__SITE_URL__/og-image.svg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="agrep - Ultrafast Arabic Search Tool">
+  <meta property="og:locale" content="en_US">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@MohamedElashri">
+  <meta name="twitter:creator" content="@MohamedElashri">
+  <meta name="twitter:title" content="agrep · Ultrafast Unicode-Aware Search for Arabic-Script Text">
+  <meta name="twitter:description" content="Ultrafast, Unicode-aware search tool tailored for Arabic-script text. Matches across diacritics, letter variants, ligatures, and dotless rasm with exact source byte mapping.">
+  <meta name="twitter:image" content="__SITE_URL__/og-image.svg">
+
+  <!-- Structured Data (JSON-LD) -->
+  <script type="application/ld+json">
+__JSON_LD__
+  </script>
+
   <link rel="stylesheet" href="site.css">
   <link rel="stylesheet" href="landing.css">
 </head>
@@ -917,17 +1116,66 @@ func main() {
 </body>
 </html>
 """
+    return (
+        html_str.replace("__KEYWORDS__", DEFAULT_KEYWORDS)
+        .replace("__SITE_URL__", SITE_URL)
+        .replace("__JSON_LD__", json.dumps(json_ld, indent=2))
+    )
 
 
 def render_playground_page() -> str:
     """Render the playground page with unified site branding and navigation."""
-    return """<!doctype html>
+    json_ld = {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "agrep Normalization Playground",
+        "url": f"{SITE_URL}/playground/",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "All (WebAssembly)",
+        "description": "Interactive WebAssembly browser playground for testing Arabic Unicode normalization rules and comparison keys in real-time.",
+    }
+
+    html_str = """<!doctype html>
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Normalization Playground · agrep</title>
   <meta name="description" content="Interactive browser playground for agrep. Test Unicode normalization profiles, Arabic presentation forms, and comparison keys in real-time via WebAssembly.">
+  <meta name="keywords" content="agrep, playground, webassembly, arabic normalization, unicode, live demo, search engine">
+  <meta name="author" content="Mohamed Elashri">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="__SITE_URL__/playground/">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="manifest" href="../site.webmanifest">
+  <meta name="theme-color" content="#0c1a1b" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f6f5ef" media="(prefers-color-scheme: light)">
+
+  <!-- Open Graph / Social Sharing -->
+  <meta property="og:site_name" content="agrep">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Normalization Playground · agrep">
+  <meta property="og:description" content="Interactive browser playground for agrep. Test Unicode normalization profiles, Arabic presentation forms, and comparison keys in real-time via WebAssembly.">
+  <meta property="og:url" content="__SITE_URL__/playground/">
+  <meta property="og:image" content="__SITE_URL__/og-image.svg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="agrep Normalization Playground">
+  <meta property="og:locale" content="en_US">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@MohamedElashri">
+  <meta name="twitter:creator" content="@MohamedElashri">
+  <meta name="twitter:title" content="Normalization Playground · agrep">
+  <meta name="twitter:description" content="Interactive browser playground for agrep. Test Unicode normalization profiles, Arabic presentation forms, and comparison keys in real-time via WebAssembly.">
+  <meta name="twitter:image" content="__SITE_URL__/og-image.svg">
+
+  <!-- Structured Data (JSON-LD) -->
+  <script type="application/ld+json">
+__JSON_LD__
+  </script>
+
   <link rel="stylesheet" href="../site.css">
   <link rel="stylesheet" href="style.css">
   <script src="wasm_exec.js" defer></script>
@@ -1044,6 +1292,10 @@ def render_playground_page() -> str:
 </body>
 </html>
 """
+    return (
+        html_str.replace("__SITE_URL__", SITE_URL)
+        .replace("__JSON_LD__", json.dumps(json_ld, indent=2))
+    )
 
 
 def build_site(repo_root: Path, output_dir: Path):
@@ -1114,18 +1366,22 @@ def build_site(repo_root: Path, output_dir: Path):
     playground_redirect = '<!doctype html><html><head><meta http-equiv="refresh" content="0; url=playground/index.html"><title>Redirecting...</title></head><body><p>Redirecting to <a href="playground/index.html">playground</a>...</p></body></html>'
     (output_dir / "playground.html").write_text(playground_redirect, encoding="utf-8")
 
-    # 6. Copy assets from web/
-    for item in ["site.css", "landing.css", "landing.js", "site.js"]:
+    # 6. Generate sitemap.xml and robots.txt
+    (output_dir / "sitemap.xml").write_text(generate_sitemap(flat_list), encoding="utf-8")
+    (output_dir / "robots.txt").write_text(generate_robots_txt(), encoding="utf-8")
+
+    # 7. Copy assets from web/
+    for item in ["site.css", "landing.css", "landing.js", "site.js", "favicon.svg", "og-image.svg", "site.webmanifest"]:
         src = web_dir / item
         if src.exists():
             shutil.copy2(src, output_dir / item)
 
-    for item in ["docs.css", "docs.js"]:
+    for item in ["docs.css", "docs.js", "favicon.svg", "site.webmanifest"]:
         src = web_dir / item
         if src.exists():
             shutil.copy2(src, docs_out / item)
 
-    for item in ["app.js", "style.css", "GO-LICENSE.txt"]:
+    for item in ["app.js", "style.css", "GO-LICENSE.txt", "favicon.svg", "site.webmanifest"]:
         src = web_dir / item
         if src.exists():
             shutil.copy2(src, playground_out / item)
@@ -1134,7 +1390,7 @@ def build_site(repo_root: Path, output_dir: Path):
 
     print(f"Successfully generated agrep site at: {output_dir}")
     print(f"Generated {len(flat_list)} documentation pages in {docs_out}")
-    print(f"Generated landing page and playground at {output_dir}")
+    print(f"Generated landing page, playground, sitemap.xml, and robots.txt at {output_dir}")
 
 
 def main():
