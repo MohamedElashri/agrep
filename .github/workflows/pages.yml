@@ -1,4 +1,4 @@
-name: Playground
+name: Pages
 
 on:
   push:
@@ -9,7 +9,8 @@ on:
       - "cmd/playground/**"
       - "internal/playground/**"
       - "web/**"
-      - "scripts/build-playground.sh"
+      - "docs/**"
+      - "scripts/**"
       - "go.mod"
       - "go.sum"
       - ".github/workflows/pages.yml"
@@ -38,7 +39,7 @@ jobs:
           cache-dependency-path: go.sum
       - name: Configure Pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
-      - name: Build playground
+      - name: Build site, docs, and playground
         run: bash scripts/build-playground.sh
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0

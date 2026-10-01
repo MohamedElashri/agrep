@@ -1,3 +1,10 @@
+---
+title: "Development Guide"
+description: "Compiling from source, running tests and race detector, fuzzing, static analysis, and agent skill usage."
+category: "Contributing & Project"
+order: 1
+---
+
 # Development
 
 ## Current priorities

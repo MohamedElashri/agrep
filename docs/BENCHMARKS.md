@@ -1,3 +1,10 @@
+---
+title: "Performance Benchmarks"
+description: "Throughput benchmarks, scaling characteristics, and comparison against GNU grep and ripgrep."
+category: "Performance"
+order: 1
+---
+
 # Performance benchmarks
 
 These are full command-line runs on synthetic, checked-in corpus text expanded

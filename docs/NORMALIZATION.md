@@ -1,3 +1,10 @@
+---
+title: "Unicode Normalization Reference"
+description: "Normalization profiles, rule tables, Arabic presentation forms, and character-level equivalence definitions."
+category: "Core Concepts"
+order: 1
+---
+
 # Normalization reference
 
 `agrep` expands enabled Arabic presentation forms, applies selected language

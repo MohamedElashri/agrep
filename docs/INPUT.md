@@ -1,3 +1,10 @@
+---
+title: "Encodings & Transliteration"
+description: "Input codepage detection (CP1256, ISO-8859-6, UTF-16), Latin-keyboard query transliteration, and document extraction."
+category: "Core Concepts"
+order: 4
+---
+
 # Encodings and transliteration
 
 ## Input encoding
