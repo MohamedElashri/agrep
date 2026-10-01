@@ -1,3 +1,10 @@
+---
+title: "Rasm & Fuzzy Matching"
+description: "Dotless rasm consonant skeleton matching and bit-parallel Myers fuzzy Levenshtein distance."
+category: "Core Concepts"
+order: 3
+---
+
 # Rasm and fuzzy matching
 
 `--rasm` broadens normalization by merging selected consonants; `--fuzzy[=N]`

@@ -1,3 +1,10 @@
+---
+title: "Normalization Playground"
+description: "Interactive WebAssembly browser tool for testing Arabic Unicode normalization rules and comparison keys."
+category: "Tools & Ecosystem"
+order: 1
+---
+
 # Normalization playground
 
 The browser playground uses the same Go normalization code as the CLI. Enter
@@ -15,10 +22,6 @@ node scripts/smoke-playground.js
 python3 -m http.server 8080 --directory web/dist
 ```
 
-Open `http://localhost:8080/`. Serve over HTTP so the page can fetch
-`agrep.wasm`. The build includes the Go toolchain's `wasm_exec.js` and its
-[license](../web/GO-LICENSE.txt); generated `web/dist` is not tracked.
+Open `http://localhost:8080/` to browse the landing page, `http://localhost:8080/docs/` for HTML documentation, or `http://localhost:8080/playground/` for the interactive playground. Serve over HTTP so the browser can fetch `agrep.wasm`. The build includes the Go toolchain's `wasm_exec.js` and its [license](../web/GO-LICENSE.txt); generated `web/dist` is not tracked.
 
-The Pages workflow builds the same directory from `main`. Configure the
-repository's Pages source to **GitHub Actions** as described in the
-[GitHub Pages guide](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).
+The Pages workflow builds the same directory from `main`. Configure the repository's Pages source to **GitHub Actions** as described in the [GitHub Pages guide](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).

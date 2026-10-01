@@ -1,3 +1,10 @@
+---
+title: "Arabic-Script Languages"
+description: "Language-specific orthographies, alphabet rules, and cross-language shared folding for Persian, Urdu, Pashto, Kurdish, and Uyghur."
+category: "Core Concepts"
+order: 2
+---
+
 # Arabic-script languages
 
 `--lang` takes a comma-separated list of `ar`, `fa`, `ur`, `ps`, `ku`, and

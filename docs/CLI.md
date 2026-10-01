@@ -1,3 +1,10 @@
+---
+title: "Command-Line Reference"
+description: "Complete reference for agrep CLI flags, options, exit codes, and JSON Lines output format."
+category: "Getting Started"
+order: 2
+---
+
 # Command-line reference
 
 ```text

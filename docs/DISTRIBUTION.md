@@ -1,3 +1,10 @@
+---
+title: "Distribution & Releases"
+description: "Release checklist, GoReleaser automation, multi-architecture binaries, and packaging recipes."
+category: "Contributing & Project"
+order: 2
+---
+
 # Distribution and release checklist
 
 The repository has a tag-triggered GoReleaser workflow and a CI snapshot build.

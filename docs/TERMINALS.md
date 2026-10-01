@@ -1,3 +1,10 @@
+---
+title: "Terminal Color & BiDi Isolates"
+description: "ANSI color output, bidirectional isolates (RLI/PDI), and terminal emulator compatibility."
+category: "Display & Output"
+order: 1
+---
+
 # Terminal color
 
 `--color=auto` highlights original-text matches when output is a terminal.

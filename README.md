@@ -3,7 +3,8 @@
 [![Release](https://img.shields.io/github/v/release/MohamedElashri/agrep?color=0284c7&label=release)](https://github.com/MohamedElashri/agrep/releases)
 [![CI](https://github.com/MohamedElashri/agrep/actions/workflows/ci.yml/badge.svg)](https://github.com/MohamedElashri/agrep/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/MohamedElashri/agrep.svg)](https://pkg.go.dev/github.com/MohamedElashri/agrep)
-[![Playground](https://img.shields.io/badge/Playground-Live%20Demo-10b981?logo=webassembly&logoColor=white)](https://mohamedelashri.github.io/agrep/)
+[![Docs](https://img.shields.io/badge/Docs-Website-0284c7)](https://mohamedelashri.github.io/agrep/docs/)
+[![Playground](https://img.shields.io/badge/Playground-Live%20Demo-10b981?logo=webassembly&logoColor=white)](https://mohamedelashri.github.io/agrep/playground/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 `agrep` is an ultrafast, Unicode-aware search tool tailored for Arabic-script text. It matches across spelling variants, diacritics (*tashkil*), letter forms, consonant skeletons (*rasm*), and transliterated queries while preserving original source lines and exact byte offsets.
@@ -91,11 +92,12 @@ The matching line is always printed with its original source spelling. Emitted J
 
 | Topic | Document | Description |
 | :--- | :--- | :--- |
+| Overview & Quickstart | [index.md](docs/index.md) | Introduction, architecture, and getting started guide |
 | CLI Reference | [CLI.md](docs/CLI.md) | Full list of flags, options, and JSON Lines format |
 | Normalization | [NORMALIZATION.md](docs/NORMALIZATION.md) | Unicode rules and profiles (`search`, `strict`, `loose`, `lucene`, `camel`) |
 | Matching Engines | [MATCHING.md](docs/MATCHING.md) | Dotless rasm, Myers fuzzy Levenshtein distance, regex |
 | Languages & Encodings | [LANGUAGES.md](docs/LANGUAGES.md), [INPUT.md](docs/INPUT.md) | Persian, Urdu, Kurdish orthographies and transliteration |
-| Web Playground | [PLAYGROUND.md](docs/PLAYGROUND.md) | [Live interactive demo](https://mohamedelashri.github.io/agrep/) running in WebAssembly |
+| Web Playground | [PLAYGROUND.md](docs/PLAYGROUND.md) | [Live interactive demo](https://mohamedelashri.github.io/agrep/playground/) running in WebAssembly |
 | Benchmarks | [BENCHMARKS.md](docs/BENCHMARKS.md) | Performance metrics and comparison suites |
 | Agent Integration | [Agent Skill](.agents/skills/agrep-search/SKILL.md) | Ready-to-use search skill for Codex and Claude Code |
 

@@ -142,3 +142,61 @@ footer { max-width: 700px; padding: 1.25rem .2rem; color: #6c7f78; font-size: .7
   .panel { min-height: 205px; }
   .panel-result { min-height: 180px; }
 }
+
+/* Dark Theme Support */
+[data-theme="dark"] body.playground-body {
+  background: #0c1a1b;
+  color: #f0f6f4;
+}
+[data-theme="dark"] .workspace {
+  border-color: #234346;
+  background: #122527;
+  box-shadow: 0 18px 56px rgba(0, 0, 0, 0.45);
+}
+[data-theme="dark"] .controls label { color: #95b3ab; }
+[data-theme="dark"] select {
+  border-color: #234346;
+  background: #183134;
+  color: #f0f6f4;
+}
+[data-theme="dark"] select:hover { border-color: #36b890; }
+[data-theme="dark"] .examples {
+  background: #152c2f;
+  border-color: #234346;
+}
+[data-theme="dark"] .examples > span { color: #95b3ab; }
+[data-theme="dark"] .example-list button {
+  border-color: #234346;
+  background: #183134;
+  color: #7ee0be;
+}
+[data-theme="dark"] .example-list button:hover {
+  border-color: #36b890;
+  background: #1f3d40;
+}
+[data-theme="dark"] .panels { background: #234346; }
+[data-theme="dark"] .panel { background: #122527; }
+[data-theme="dark"] .panel-result { background: #152c2f; }
+[data-theme="dark"] .panel-top label,
+[data-theme="dark"] .panel-title { color: #f0f6f4; }
+[data-theme="dark"] textarea,
+[data-theme="dark"] .key { color: #f0f6f4; }
+[data-theme="dark"] .key.changed { color: #45cda1; }
+[data-theme="dark"] textarea::placeholder { color: #4a6a64; }
+[data-theme="dark"] .rule-panel { border-color: #234346; }
+[data-theme="dark"] .rule-panel h3 { color: #f0f6f4; }
+[data-theme="dark"] .rule-panel p { color: #95b3ab; }
+[data-theme="dark"] .rule {
+  background: rgba(54, 184, 144, 0.18);
+  color: #7ee0be;
+}
+[data-theme="dark"] .no-rules { color: #62827a; }
+[data-theme="dark"] .status {
+  border-color: #234346;
+  color: #95b3ab;
+}
+[data-theme="dark"] .page-header h2 { color: #f0f6f4; }
+[data-theme="dark"] .section-kicker { color: #95b3ab; }
+[data-theme="dark"] .live-label { color: #95b3ab; }
+[data-theme="dark"] footer { color: #95b3ab; }
+
