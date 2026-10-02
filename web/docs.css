@@ -168,25 +168,27 @@
 }
 
 .doc-category {
-  font-size: 0.8rem;
-  font-weight: 750;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: var(--accent-teal);
+  color: var(--accent-terracotta);
   margin: 0 0 0.5rem;
 }
 
 .doc-header h1 {
+  font-family: var(--font-serif);
   font-size: clamp(2rem, 3.5vw, 2.75rem);
-  font-weight: 850;
-  letter-spacing: -0.035em;
+  font-weight: 600;
+  letter-spacing: -0.025em;
   color: var(--text-main);
   margin: 0 0 0.8rem;
   line-height: 1.2;
 }
 
 .doc-lead {
-  font-size: 1.15rem;
+  font-size: 1.12rem;
   line-height: 1.6;
   color: var(--text-muted);
   margin: 0;
@@ -201,11 +203,19 @@
 
 .doc-body h1,
 .doc-body h2,
-.doc-body h3,
-.doc-body h4 {
+.doc-body h3 {
+  font-family: var(--font-serif);
   color: var(--text-main);
-  letter-spacing: -0.025em;
-  font-weight: 750;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  scroll-margin-top: calc(var(--header-height) + 1.5rem);
+  position: relative;
+}
+
+.doc-body h4 {
+  font-family: var(--font-sans);
+  color: var(--text-main);
+  font-weight: 700;
   scroll-margin-top: calc(var(--header-height) + 1.5rem);
   position: relative;
 }
@@ -216,19 +226,19 @@
 }
 
 .doc-body h2 {
-  font-size: 1.5rem;
+  font-size: 1.45rem;
   margin: 2.4rem 0 1rem;
   padding-bottom: 0.4rem;
   border-bottom: 1px solid var(--border-subtle);
 }
 
 .doc-body h3 {
-  font-size: 1.25rem;
+  font-size: 1.2rem;
   margin: 2rem 0 0.8rem;
 }
 
 .doc-body h4 {
-  font-size: 1.05rem;
+  font-size: 1.02rem;
   margin: 1.6rem 0 0.6rem;
 }
 
@@ -407,8 +417,12 @@ tbody tr:hover {
   border-left-color: #0284c7;
 }
 .callout-note .callout-badge {
-  background-color: rgba(2, 132, 199, 0.15);
-  color: #38bdf8;
+  background-color: rgba(2, 132, 199, 0.12);
+  color: #0369a1;
+}
+[data-theme="dark"] .callout-note .callout-badge {
+  background-color: rgba(2, 132, 199, 0.22);
+  color: #7dd3fc;
 }
 
 .callout-tip {
@@ -420,27 +434,35 @@ tbody tr:hover {
 }
 
 .callout-important {
-  border-left-color: #8b5cf6;
+  border-left-color: #7c3aed;
 }
 .callout-important .callout-badge {
-  background-color: rgba(139, 92, 246, 0.15);
-  color: #a78bfa;
+  background-color: rgba(124, 58, 237, 0.12);
+  color: #6d28d9;
+}
+[data-theme="dark"] .callout-important .callout-badge {
+  background-color: rgba(139, 92, 246, 0.22);
+  color: #c4b5fd;
 }
 
 .callout-warning {
   border-left-color: var(--accent-terracotta);
 }
 .callout-warning .callout-badge {
-  background-color: rgba(224, 131, 80, 0.15);
+  background-color: var(--accent-terracotta-subtle);
   color: var(--accent-terracotta);
 }
 
 .callout-caution {
-  border-left-color: #ef4444;
+  border-left-color: #dc2626;
 }
 .callout-caution .callout-badge {
-  background-color: rgba(239, 68, 68, 0.15);
-  color: #f87171;
+  background-color: rgba(220, 38, 38, 0.12);
+  color: #b91c1c;
+}
+[data-theme="dark"] .callout-caution .callout-badge {
+  background-color: rgba(239, 68, 68, 0.22);
+  color: #fca5a5;
 }
 
 .callout-body p:last-child {

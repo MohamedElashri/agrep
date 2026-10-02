@@ -2,27 +2,9 @@
 "use strict";
 
 document.addEventListener("DOMContentLoaded", () => {
-  // 1. Quick Install Tabs
-  const installCommands = {
-    curl: "curl -fsSL https://raw.githubusercontent.com/MohamedElashri/agrep/main/scripts/install.sh | bash",
-    go: "go install github.com/MohamedElashri/agrep/cmd/agrep@v0.1.1",
-    binary: "gh release download v0.1.1 -R MohamedElashri/agrep",
-  };
-
-  const installTabs = document.querySelectorAll(".install-tab");
-  const installCmdEl = document.getElementById("install-command");
+  // 1. Copy install command
   const copyInstallBtn = document.getElementById("copy-install-btn");
-
-  installTabs.forEach((tab) => {
-    tab.addEventListener("click", () => {
-      installTabs.forEach((t) => t.classList.remove("active"));
-      tab.classList.add("active");
-      const key = tab.getAttribute("data-install");
-      if (installCmdEl && installCommands[key]) {
-        installCmdEl.textContent = installCommands[key];
-      }
-    });
-  });
+  const installCmdEl = document.getElementById("install-command");
 
   if (copyInstallBtn && installCmdEl) {
     copyInstallBtn.addEventListener("click", async () => {
@@ -42,7 +24,28 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 2. Interactive Comparison Demo
+  // 2. Alt install buttons
+  document.querySelectorAll(".alt-install-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const cmd = btn.getAttribute("data-cmd");
+      if (!cmd) return;
+      if (installCmdEl) {
+        installCmdEl.textContent = cmd;
+      }
+      try {
+        await navigator.clipboard.writeText(cmd);
+        const originalText = btn.textContent;
+        btn.textContent = "Copied to clipboard!";
+        setTimeout(() => {
+          btn.textContent = originalText;
+        }, 2000);
+      } catch (e) {
+        console.error("Clipboard error:", e);
+      }
+    });
+  });
+
+  // 3. Interactive Comparison Demo
   const scenarios = [
     {
       name: "Tashkil (Vowels)",

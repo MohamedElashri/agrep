@@ -583,7 +583,7 @@ def render_doc_page(
     }
 
     return f"""<!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -765,7 +765,7 @@ def render_landing_page() -> str:
     }
 
     html_str = """<!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -777,8 +777,8 @@ def render_landing_page() -> str:
   <link rel="canonical" href="__SITE_URL__/">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="manifest" href="site.webmanifest">
-  <meta name="theme-color" content="#0c1a1b" media="(prefers-color-scheme: dark)">
-  <meta name="theme-color" content="#f6f5ef" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#f5f3ec" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121818" media="(prefers-color-scheme: dark)">
 
   <!-- Open Graph / Social Sharing -->
   <meta property="og:site_name" content="agrep">
@@ -835,48 +835,36 @@ __JSON_LD__
 
   <!-- Hero Section -->
   <section class="hero-section">
-    <div class="hero-bg-accent" aria-hidden="true"></div>
     <div class="hero-container">
-      <div class="hero-badge">
-        <span class="badge-dot"></span>
-        <span>v0.1.1 Released · WebAssembly Live Demo Included</span>
-      </div>
+      <p class="hero-kicker">Unicode-aware search tool</p>
 
       <h1 class="hero-title">
-        Ultrafast, Unicode-aware search for <span class="highlight">Arabic-script</span> text.
+        Ultrafast, Unicode-aware search for Arabic-script text.
       </h1>
 
       <p class="hero-subtitle">
-        Standard tools like <code>grep</code> and <code>ripgrep</code> miss matches due to diacritics, cursive ligatures, letter variants, and diverse orthographies. <strong>agrep</strong> eliminates search blind spots with zero-allocation streaming normalization, dotless rasm, and exact source byte mapping.
+        Standard tools like <code>grep</code> and <code>ripgrep</code> miss matches due to vocalization diacritics, presentation-form ligatures, letter variants, and diverse orthographies. <strong>agrep</strong> eliminates search blind spots with zero-allocation streaming normalization, dotless rasm reconstruction, and exact source byte mapping.
       </p>
 
       <div class="hero-actions">
-        <a href="docs/index.html" class="btn btn-primary">
-          <span>Explore Documentation</span>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-        </a>
-        <a href="playground/index.html" class="btn btn-secondary">
-          <span class="live-indicator"></span>
-          <span>Try Web Playground</span>
-        </a>
-        <a href="https://github.com/MohamedElashri/agrep" target="_blank" rel="noopener noreferrer" class="btn btn-ghost">
-          <span>Star on GitHub</span>
-        </a>
+        <a href="docs/index.html" class="btn btn-primary">Read Documentation</a>
+        <a href="playground/index.html" class="btn btn-secondary">Interactive Playground</a>
       </div>
 
       <!-- Quick Install Box -->
-      <div class="hero-install-card">
-        <div class="install-tabs">
-          <button class="install-tab active" data-install="curl">curl install</button>
-          <button class="install-tab" data-install="go">go install</button>
-          <button class="install-tab" data-install="binary">binary release</button>
-        </div>
-        <div class="install-command-wrap">
+      <div class="hero-install">
+        <div class="install-bar">
+          <span class="install-prompt">$</span>
           <code id="install-command">curl -fsSL https://raw.githubusercontent.com/MohamedElashri/agrep/main/scripts/install.sh | bash</code>
-          <button id="copy-install-btn" class="copy-btn" aria-label="Copy install command">
-            <svg class="copy-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <button id="copy-install-btn" class="install-copy-btn" aria-label="Copy install command" title="Copy to clipboard">
+            <svg class="copy-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
             <span class="copy-text">Copy</span>
           </button>
+        </div>
+        <div class="install-meta">
+          <span>Or via Go: <button class="alt-install-btn" data-cmd="go install github.com/MohamedElashri/agrep/cmd/agrep@v0.1.1"><code>go install github.com/MohamedElashri/agrep/cmd/agrep@v0.1.1</code></button></span>
+          <span class="install-meta-sep">·</span>
+          <a href="https://github.com/MohamedElashri/agrep/releases" target="_blank" rel="noopener noreferrer">Release binaries</a>
         </div>
       </div>
     </div>
@@ -887,8 +875,8 @@ __JSON_LD__
     <div class="section-container">
       <div class="section-header">
         <p class="section-eyebrow">Interactive Comparison</p>
-        <h2>See why generic search fails on Arabic</h2>
-        <p class="section-desc">Click through the scenarios below to see how agrep handles the complex orthographic realities of Arabic-script text while standard grep fails.</p>
+        <h2>Why generic search fails on Arabic</h2>
+        <p class="section-desc">Arabic orthography requires normalization before matching. Standard grep tests raw bytes; agrep normalizes in memory while pointing back to the exact source bytes.</p>
       </div>
 
       <div class="demo-widget">
@@ -906,7 +894,7 @@ __JSON_LD__
             <div class="demo-box demo-box-fail" id="grep-box">
               <div class="demo-cli-cmd">$ grep 'مدرسه' corpus.txt</div>
               <div class="demo-result-text" dir="auto">(No matches found)</div>
-              <div class="demo-status-pill pill-fail">❌ 0 matches (missed text)</div>
+              <div class="demo-status-pill pill-fail">0 matches (missed text)</div>
             </div>
           </div>
 
@@ -915,7 +903,7 @@ __JSON_LD__
             <div class="demo-box demo-box-success" id="agrep-box">
               <div class="demo-cli-cmd">$ agrep 'مدرسه' corpus.txt</div>
               <div class="demo-result-text" dir="auto" id="agrep-match-text">هذه <mark>مَدْرَسَةٌ</mark> عريقة في المدينة.</div>
-              <div class="demo-status-pill pill-success">✅ Match found with exact byte spans</div>
+              <div class="demo-status-pill pill-success">Match found · exact byte span [4:24]</div>
             </div>
           </div>
         </div>
@@ -931,95 +919,69 @@ __JSON_LD__
   <section class="features-section">
     <div class="section-container">
       <div class="section-header">
-        <p class="section-eyebrow">Engineered for Performance & Accuracy</p>
-        <h2>Built for researchers, engineers, and AI agents</h2>
-        <p class="section-desc">From 100-gigabyte historical corpora to real-time agentic codebases, agrep is fast, correct, and modular.</p>
+        <p class="section-eyebrow">Technical Architecture</p>
+        <h2>Designed for linguistic precision and throughput</h2>
+        <p class="section-desc">agrep combines the linguistic correctness of specialized NLP packages with the streaming speed of modern system utilities.</p>
       </div>
 
       <div class="features-grid">
         <div class="feature-card">
-          <div class="feature-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-          </div>
+          <span class="feature-num">01 / NORMALIZATION</span>
           <h3>Streaming Unicode Normalization</h3>
-          <p>Gigabyte-per-second Unicode NFD pipeline with 5 standard presets (<code>search</code>, <code>strict</code>, <code>loose</code>, <code>lucene</code>, <code>camel</code>) and granular flags to keep or fold specific marks.</p>
+          <p>Zero-allocation Unicode NFD pipeline supporting 5 standard presets (<code>search</code>, <code>strict</code>, <code>loose</code>, <code>lucene</code>, <code>camel</code>) and granular flags to keep or fold specific marks.</p>
           <a href="docs/normalization.html" class="feature-link">Read Normalization Docs →</a>
         </div>
 
         <div class="feature-card">
-          <div class="feature-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-          </div>
+          <span class="feature-num">02 / LANGUAGES</span>
           <h3>Six Arabic-Script Languages</h3>
           <p>First-class support for Persian (Farsi), Urdu, Pashto, Sorani Kurdish, and Uyghur. Retains distinct language alphabets or enables shared letter search across Arabic and Persian.</p>
           <a href="docs/languages.html" class="feature-link">Read Language Support →</a>
         </div>
 
         <div class="feature-card">
-          <div class="feature-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          </div>
+          <span class="feature-num">03 / MANUSCRIPTS</span>
           <h3>Dotless Rasm & Myers Fuzzy</h3>
           <p>Search unpointed historical manuscripts where <code>ب ت ث ن ي</code> share the dotless skeleton <code>ٮ</code>. Bit-parallel Myers algorithm handles typos, dialect variance, and OCR errors.</p>
           <a href="docs/matching.html" class="feature-link">Read Matching Docs →</a>
         </div>
 
         <div class="feature-card">
-          <div class="feature-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-          </div>
+          <span class="feature-num">04 / ACCURACY</span>
           <h3>Exact Source-Byte Spans</h3>
           <p>Matches on normalized keys, but maps every span back to original text UTF-8 byte offsets. Even expanded presentation forms like <code>ﻻ</code> map back to the single source character.</p>
           <a href="docs/cli.html" class="feature-link">Explore JSON Output →</a>
         </div>
 
         <div class="feature-card">
-          <div class="feature-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-          </div>
+          <span class="feature-num">05 / ENCODINGS</span>
           <h3>Legacy Encodings & Transliteration</h3>
           <p>Automatic detection for CP1256, ISO-8859-6, and UTF-16. Search Arabic corpora from a Latin keyboard using standard Buckwalter, ArabTeX, or ISO-233 transliteration schemes.</p>
           <a href="docs/input.html" class="feature-link">Read Encodings Guide →</a>
         </div>
 
         <div class="feature-card">
-          <div class="feature-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-          </div>
-          <h3>Modular Go Packages & Agent Skills</h3>
-          <p>Use agrep as a standalone CLI or import modular Go packages (<code>arabic</code>, <code>match</code>, <code>scan</code>). Ships with pre-built skills for Claude Code and OpenAI Codex harnesses.</p>
-          <a href="docs/development.html" class="feature-link">View Agent Skills →</a>
+          <span class="feature-num">06 / EMBEDDABLE</span>
+          <h3>Modular Go Packages</h3>
+          <p>Use agrep as a standalone CLI or import modular Go packages (<code>arabic</code>, <code>match</code>, <code>scan</code>) directly into your Go services, data pipelines, and search indexes.</p>
+          <a href="docs/development.html" class="feature-link">View Go Packages →</a>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Performance Benchmark Highlight -->
+  <!-- Performance Benchmark Section -->
   <section class="benchmark-section">
     <div class="section-container">
       <div class="benchmark-card">
         <div class="benchmark-content">
-          <p class="section-eyebrow">High Throughput</p>
-          <h2>Over 1,200 MiB/s throughput on multi-threaded search</h2>
+          <p class="section-eyebrow">Throughput</p>
+          <h2>Zero-allocation hot paths and streaming I/O</h2>
           <p>
-            agrep is built with Go and optimized with SIMD and zero-allocation hot paths. It provides the linguistic sophistication of specialized NLP packages while retaining the streaming speed expected of modern system utilities.
+            agrep processes multi-gigabyte corpora using zero-allocation streaming normalization and parallel directory traversal. It matches raw throughput against standard search utilities while performing full Unicode decomposition.
           </p>
-          <div class="benchmark-stats">
-            <div class="stat-item">
-              <span class="stat-number">1,214 <span class="stat-unit">MiB/s</span></span>
-              <span class="stat-label">Recursive search throughput</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-number">&lt; 1 <span class="stat-unit">ms</span></span>
-              <span class="stat-label">CLI startup latency</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-number">6 <span class="stat-unit">Alphabets</span></span>
-              <span class="stat-label">Full language orthographies</span>
-            </div>
-          </div>
           <div class="benchmark-cta">
-            <a href="docs/benchmarks.html" class="btn btn-secondary">View Complete Benchmark Data →</a>
+            <a href="docs/benchmarks.html" class="benchmark-link">View complete benchmark methodology and dataset results →</a>
           </div>
         </div>
       </div>
@@ -1031,7 +993,7 @@ __JSON_LD__
     <div class="section-container">
       <div class="section-header">
         <p class="section-eyebrow">Embeddable Library</p>
-        <h2>Use agrep as a modular Go library</h2>
+        <h2>Import into your Go application</h2>
         <p class="section-desc">Integrate Unicode-aware Arabic normalization and matching directly into your Go services and pipelines.</p>
       </div>
 
@@ -1058,7 +1020,7 @@ func main() {
     // High-performance Myers fuzzy search
     m, _ := match.NewFuzzy("كتاب", 1, p)
     matches := m.FindAll("هذا كتلب جديد", -1)
-    fmt.Printf("Matched %d spans\n", len(matches))
+    fmt.Printf("Matched %d spans\\n", len(matches))
 }</code></pre>
       </div>
     </div>
@@ -1136,7 +1098,7 @@ def render_playground_page() -> str:
     }
 
     html_str = """<!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -1148,8 +1110,8 @@ def render_playground_page() -> str:
   <link rel="canonical" href="__SITE_URL__/playground/">
   <link rel="icon" type="image/svg+xml" href="../favicon.svg">
   <link rel="manifest" href="../site.webmanifest">
-  <meta name="theme-color" content="#0c1a1b" media="(prefers-color-scheme: dark)">
-  <meta name="theme-color" content="#f6f5ef" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#f5f3ec" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121818" media="(prefers-color-scheme: dark)">
 
   <!-- Open Graph / Social Sharing -->
   <meta property="og:site_name" content="agrep">
