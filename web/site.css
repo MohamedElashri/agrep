@@ -43,7 +43,7 @@
   --shadow-md: 0 4px 14px rgba(23, 42, 40, 0.07);
   --shadow-lg: 0 12px 30px rgba(23, 42, 40, 0.09);
 
-  --header-height: 62px;
+  --header-height: 52px;
 }
 
 [data-theme="dark"] {
@@ -88,7 +88,8 @@ html, body {
   font-family: var(--font-sans);
   background-color: var(--bg-canvas);
   color: var(--text-main);
-  line-height: 1.6;
+  line-height: 1.55;
+  font-size: 15px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -129,7 +130,7 @@ code, kbd, pre, samp {
   max-width: 1360px;
   height: 100%;
   margin: 0 auto;
-  padding: 0 1.5rem;
+  padding: 0 1.25rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -138,15 +139,15 @@ code, kbd, pre, samp {
 .header-left {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
+  gap: 0.75rem;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.5rem;
   font-family: var(--font-serif);
-  font-size: 1.35rem;
+  font-size: 1.2rem;
   font-weight: 700;
   color: var(--text-main);
   letter-spacing: -0.03em;
@@ -159,14 +160,14 @@ code, kbd, pre, samp {
 .brand-mark {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: var(--radius-sm);
   background-color: var(--accent-pine);
   border: 1px solid var(--accent-pine);
   color: #b7e5cc;
   font-family: var(--font-serif);
-  font-size: 1.3rem;
+  font-size: 1.15rem;
   line-height: 1;
 }
 
@@ -177,11 +178,11 @@ code, kbd, pre, samp {
 .header-badge {
   display: inline-block;
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 600;
   text-transform: lowercase;
   letter-spacing: 0.05em;
-  padding: 0.15rem 0.5rem;
+  padding: 0.12rem 0.45rem;
   border-radius: var(--radius-sm);
   background-color: var(--bg-subtle);
   color: var(--text-muted);
@@ -191,11 +192,11 @@ code, kbd, pre, samp {
 .header-nav {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 1.25rem;
 }
 
 .header-nav a {
-  font-size: 0.92rem;
+  font-size: 0.85rem;
   font-weight: 500;
   color: var(--text-muted);
   transition: color 0.15s ease;
@@ -213,15 +214,15 @@ code, kbd, pre, samp {
 .github-link {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
 }
 
 /* Theme Toggle Button */
 .theme-toggle-btn {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   border-radius: var(--radius-sm);
   color: var(--text-muted);
   background-color: var(--bg-surface);
@@ -244,13 +245,17 @@ code, kbd, pre, samp {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.45rem;
-  padding: 0.65rem 1.25rem;
-  font-size: 0.92rem;
+  gap: 0.4rem;
+  padding: 0.48rem 1.1rem;
+  font-size: 0.85rem;
   font-weight: 600;
   border-radius: var(--radius-sm);
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
   white-space: nowrap;
+}
+
+.btn:active {
+  transform: scale(0.98);
 }
 
 .btn-primary {
@@ -287,12 +292,179 @@ code, kbd, pre, samp {
   background-color: var(--bg-subtle);
 }
 
-/* Footer */
+/* Global Code Blocks & Syntax Highlighting */
+.code-block {
+  position: relative;
+  margin: 1.15rem 0 1.5rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.code-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 0.85rem;
+  background-color: var(--bg-surface-elevated);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.code-lang {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+
+.copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.copy-btn:hover {
+  color: var(--text-main);
+  border-color: var(--accent-teal);
+  background-color: var(--bg-canvas);
+}
+
+.copy-btn.copied {
+  color: #135c4e;
+  background-color: var(--match-bg);
+  border-color: var(--match-border);
+}
+
+pre {
+  margin: 0;
+  padding: 0.9rem 1.15rem;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--text-main);
+  background-color: transparent;
+  tab-size: 4;
+}
+
+pre code {
+  font-family: inherit;
+  font-size: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+/* Syntax Highlighting Tokens - Light Theme (Scholarly Parchment) */
+.tok-kw { color: #8b263e; font-weight: 600; }          /* Keywords: crimson / ruby */
+.tok-type { color: #0d5c75; font-weight: 600; }        /* Types & built-ins: slate blue */
+.tok-fn { color: #623485; font-weight: 600; }          /* Functions & methods: plum / deep violet */
+.tok-str { color: #1e6b47; }                           /* Strings & regex: pine forest green */
+.tok-cmd { color: #166b60; font-weight: 700; }         /* Shell commands: teal bold */
+.tok-flag { color: #b5531d; font-weight: 600; }        /* Options / CLI flags: warm terracotta */
+.tok-comment { color: #768a84; font-style: italic; }   /* Comments: sage grey italic */
+.tok-punct { color: #4e635e; }                         /* Operators & punctuation: neutral */
+.tok-op { color: #b05421; font-weight: 600; }          /* Operators: terracotta */
+.tok-num { color: #ad4e19; }                           /* Numbers: amber */
+.tok-var { color: #2e5b88; }                           /* Variables: navy */
+.tok-prompt { color: #8d8570; font-weight: 600; user-select: none; } /* CLI prompt ($ / #) */
+.tok-ident { color: var(--text-main); }
+.tok-attr { color: #0d5c75; font-weight: 600; }        /* JSON / YAML keys */
+
+/* Syntax Highlighting Tokens - Dark Theme */
+[data-theme="dark"] .tok-kw { color: #ff7b72; font-weight: 600; }
+[data-theme="dark"] .tok-type { color: #79c0ff; font-weight: 600; }
+[data-theme="dark"] .tok-fn { color: #d2a8ff; font-weight: 600; }
+[data-theme="dark"] .tok-str { color: #7ee787; }
+[data-theme="dark"] .tok-cmd { color: #42b694; font-weight: 700; }
+[data-theme="dark"] .tok-flag { color: #ffa657; font-weight: 600; }
+[data-theme="dark"] .tok-comment { color: #768b85; font-style: italic; }
+[data-theme="dark"] .tok-punct { color: #9ab2ab; }
+[data-theme="dark"] .tok-op { color: #ff9b5e; font-weight: 600; }
+[data-theme="dark"] .tok-num { color: #ffab70; }
+[data-theme="dark"] .tok-var { color: #a5d6ff; }
+[data-theme="dark"] .tok-prompt { color: #5a736d; font-weight: 600; user-select: none; }
+[data-theme="dark"] .tok-ident { color: var(--text-main); }
+[data-theme="dark"] .tok-attr { color: #79c0ff; font-weight: 600; }
+
+/* Global Tables */
+.table-wrapper {
+  margin: 1.15rem 0 1.5rem;
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background-color: var(--bg-surface);
+  box-shadow: var(--shadow-sm);
+  -webkit-overflow-scrolling: touch;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+  text-align: left;
+}
+
+thead tr {
+  background-color: var(--bg-surface-elevated);
+  border-bottom: 2px solid var(--border-strong);
+}
+
+th {
+  padding: 0.6rem 0.85rem;
+  font-weight: 700;
+  color: var(--text-main);
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
+td {
+  padding: 0.6rem 0.85rem;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-main);
+  line-height: 1.5;
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+tbody tr:nth-child(even) {
+  background-color: rgba(0, 0, 0, 0.015);
+}
+
+[data-theme="dark"] tbody tr:nth-child(even) {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+tbody tr:hover {
+  background-color: var(--accent-teal-subtle);
+}
+
+.text-left { text-align: left; }
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+
+/* Global Footer */
 .site-footer {
   border-top: 1px solid var(--border-subtle);
   background-color: var(--bg-surface);
-  padding: 3.5rem 1.5rem 2.5rem;
-  margin-top: 5rem;
+  padding: 2.25rem 1.5rem 1.75rem;
+  margin-top: 2.75rem;
 }
 
 .footer-inner {
@@ -300,31 +472,31 @@ code, kbd, pre, samp {
   margin: 0 auto;
   display: grid;
   grid-template-columns: 2fr 1fr 1fr 1fr;
-  gap: 2.5rem;
+  gap: 1.75rem;
 }
 
 .footer-brand-col .brand {
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.6rem;
 }
 
 .footer-tagline {
   color: var(--text-muted);
-  font-size: 0.9rem;
-  line-height: 1.6;
-  max-width: 320px;
-  margin: 0 0 1rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  max-width: 300px;
+  margin: 0 0 0.75rem;
 }
 
 .footer-copyright {
   color: var(--text-faint);
-  font-size: 0.78rem;
-  line-height: 1.5;
+  font-size: 0.72rem;
+  line-height: 1.45;
   margin: 0;
 }
 
 .footer-links-col h4 {
-  margin: 0 0 0.9rem;
-  font-size: 0.78rem;
+  margin: 0 0 0.65rem;
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -337,12 +509,12 @@ code, kbd, pre, samp {
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.4rem;
 }
 
 .footer-links-col a {
   color: var(--text-muted);
-  font-size: 0.88rem;
+  font-size: 0.82rem;
 }
 
 .footer-links-col a:hover {
@@ -352,16 +524,31 @@ code, kbd, pre, samp {
 @media (max-width: 900px) {
   .footer-inner {
     grid-template-columns: 1fr 1fr;
-    gap: 2rem;
+    gap: 1.5rem;
+  }
+}
+
+@media (max-width: 680px) {
+  .header-nav {
+    gap: 0.75rem;
+  }
+  .header-nav a {
+    font-size: 0.8rem;
+  }
+  .github-link span {
+    display: none;
   }
 }
 
 @media (max-width: 580px) {
   .footer-inner {
     grid-template-columns: 1fr;
-    gap: 1.8rem;
+    gap: 1.4rem;
   }
-  .header-nav a:not(.github-link) {
+}
+
+@media (max-width: 440px) {
+  .header-nav a:not(.active):not(.github-link) {
     display: none;
   }
 }
