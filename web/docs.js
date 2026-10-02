@@ -40,7 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // 3. Table of Contents Scrollspy
-  const tocLinks = document.querySelectorAll(".toc-list a");
+  const tocLinks = Array.from(document.querySelectorAll(".toc-list a"));
   const headings = Array.from(document.querySelectorAll(".doc-body h2, .doc-body h3"));
 
   if (tocLinks.length > 0 && headings.length > 0) {
@@ -49,7 +49,7 @@ document.addEventListener("DOMContentLoaded", () => {
       let activeHeading = null;
 
       for (const h of headings) {
-        if (h.offsetTop - 100 <= scrollY) {
+        if (h.offsetTop - 120 <= scrollY) {
           activeHeading = h;
         } else {
           break;
@@ -75,6 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 4. Client-side Search Modal with search-index.json
   let searchIndex = null;
+  let selectedResultIndex = -1;
   const searchModal = document.getElementById("search-modal");
   const modalInput = document.getElementById("modal-search-input");
   const modalResults = document.getElementById("modal-search-results");
@@ -108,10 +109,35 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!searchModal) return;
     searchModal.classList.remove("open");
     searchModal.setAttribute("aria-hidden", "true");
+    selectedResultIndex = -1;
+  }
+
+  function getResultItems() {
+    return Array.from(modalResults ? modalResults.querySelectorAll(".search-result-item") : []);
+  }
+
+  function updateSelectedResult(newIndex) {
+    const items = getResultItems();
+    if (items.length === 0) {
+      selectedResultIndex = -1;
+      return;
+    }
+    if (newIndex < 0) newIndex = items.length - 1;
+    if (newIndex >= items.length) newIndex = 0;
+
+    items.forEach((item, idx) => {
+      const isSel = idx === newIndex;
+      item.classList.toggle("selected", isSel);
+      if (isSel) {
+        item.scrollIntoView({ block: "nearest" });
+      }
+    });
+    selectedResultIndex = newIndex;
   }
 
   function renderSearchResults(query) {
     if (!modalResults) return;
+    selectedResultIndex = -1;
     const q = query.toLowerCase().trim();
 
     if (!q) {
@@ -166,6 +192,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     modalResults.innerHTML = htmlArr.join("");
+    // Pre-select first item
+    updateSelectedResult(0);
   }
 
   function escapeHtml(str) {
@@ -192,6 +220,25 @@ document.addEventListener("DOMContentLoaded", () => {
   if (modalInput) {
     modalInput.addEventListener("input", () => {
       renderSearchResults(modalInput.value);
+    });
+
+    modalInput.addEventListener("keydown", (e) => {
+      const items = getResultItems();
+      if (items.length === 0) return;
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        updateSelectedResult(selectedResultIndex + 1);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        updateSelectedResult(selectedResultIndex - 1);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        const target = items[selectedResultIndex >= 0 ? selectedResultIndex : 0];
+        if (target && target.href) {
+          window.location.href = target.href;
+        }
+      }
     });
   }
 });

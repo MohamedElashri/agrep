@@ -1,94 +1,374 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f3f1eb">
-  <title>Normalization playground · agrep</title>
-  <link rel="stylesheet" href="style.css">
-  <script src="wasm_exec.js" defer></script>
-  <script src="app.js" defer></script>
+  <title>agrep · Ultrafast Unicode-Aware Search for Arabic-Script Text</title>
+  <meta name="description" content="agrep is a high-performance CLI search tool and Go library built specifically for Arabic, Persian, Urdu, Pashto, Kurdish, and Uyghur text. Matches across diacritics, ligatures, and consonant skeletons.">
+  <meta name="keywords" content="agrep, arabic search, arabic grep, unicode normalization, ripgrep, grep, tashkil, rasm, dotless rasm, persian search, urdu search, pashto, kurdish, uyghur, buckwalter, fuzzy search, cli, go, open source">
+  <meta name="author" content="Mohamed Elashri">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://mohamedelashri.github.io/agrep/">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="manifest" href="site.webmanifest">
+  <meta name="theme-color" content="#f5f3ec" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121818" media="(prefers-color-scheme: dark)">
+
+  <!-- Open Graph / Social Sharing -->
+  <meta property="og:site_name" content="agrep">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="agrep · Ultrafast Unicode-Aware Search for Arabic-Script Text">
+  <meta property="og:description" content="agrep is a high-performance CLI search tool and Go library built specifically for Arabic, Persian, Urdu, Pashto, Kurdish, and Uyghur text. Matches across diacritics, ligatures, and consonant skeletons.">
+  <meta property="og:url" content="https://mohamedelashri.github.io/agrep/">
+  <meta property="og:image" content="https://mohamedelashri.github.io/agrep/og-image.svg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="agrep - Ultrafast Arabic Search Tool">
+  <meta property="og:locale" content="en_US">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@MohamedElashri">
+  <meta name="twitter:creator" content="@MohamedElashri">
+  <meta name="twitter:title" content="agrep · Ultrafast Unicode-Aware Search for Arabic-Script Text">
+  <meta name="twitter:description" content="agrep is a high-performance CLI search tool and Go library built specifically for Arabic, Persian, Urdu, Pashto, Kurdish, and Uyghur text. Matches across diacritics, ligatures, and consonant skeletons.">
+  <meta name="twitter:image" content="https://mohamedelashri.github.io/agrep/og-image.svg">
+
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "name": "agrep",
+      "headline": "Ultrafast Unicode-Aware Search for Arabic-Script Text",
+      "description": "agrep is an ultrafast, Unicode-aware search tool and Go library tailored for Arabic, Persian, Urdu, Pashto, Sorani Kurdish, and Uyghur text.",
+      "applicationCategory": "DeveloperApplication",
+      "applicationSubCategory": "Search CLI",
+      "operatingSystem": "Linux, macOS, Windows, FreeBSD, OpenBSD, NetBSD",
+      "softwareVersion": "0.1.1",
+      "license": "https://opensource.org/licenses/MIT",
+      "url": "https://mohamedelashri.github.io/agrep/",
+      "codeRepository": "https://github.com/MohamedElashri/agrep",
+      "author": {
+        "@type": "Person",
+        "name": "Mohamed Elashri",
+        "url": "https://github.com/MohamedElashri"
+      },
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    },
+    {
+      "@type": "WebSite",
+      "name": "agrep",
+      "url": "https://mohamedelashri.github.io/agrep/",
+      "description": "Official landing page, documentation, and WebAssembly playground for agrep."
+    }
+  ]
+}
+  </script>
+
+  <link rel="stylesheet" href="site.css">
+  <link rel="stylesheet" href="landing.css">
+
 </head>
-<body>
-  <main class="shell">
-    <aside class="intro" aria-labelledby="page-title">
-      <div class="brand"><span class="brand-mark" aria-hidden="true">ا</span><span>agrep<span class="brand-dot">.</span></span></div>
-      <div class="intro-copy">
-        <p class="eyebrow">Arabic-script search / playground</p>
-        <h1 id="page-title">See the text behind the match.</h1>
-        <p>See the comparison key agrep uses for searching. Switch profiles and languages to explore the result.</p>
+<body class="landing-body">
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="header-left">
+        
+        <a href="index.html" class="brand">
+          <span class="brand-mark" aria-hidden="true">ا</span>
+          <span class="brand-text">agrep<span class="brand-dot">.</span></span>
+        </a>
+        
       </div>
-      <div class="intro-foot">
-        <span class="intro-line" aria-hidden="true"></span>
-        <p>Same Go normalization library as the CLI. Your text stays in this browser.</p>
-      </div>
-    </aside>
-
-    <div class="main-column">
-      <header class="page-header">
-        <div>
-          <p class="section-kicker">Interactive tool</p>
-          <h2>Normalization playground</h2>
-        </div>
-        <span class="live-label"><span aria-hidden="true"></span> Live preview</span>
-      </header>
-
-      <section class="workspace" aria-label="Normalization playground">
-        <div class="controls">
-          <label for="profile">Normalization profile
-            <select id="profile">
-              <option value="search">Search</option>
-              <option value="strict">Strict</option>
-              <option value="loose">Loose</option>
-              <option value="lucene">Lucene</option>
-              <option value="camel">CAMeL</option>
-            </select>
-          </label>
-          <label for="languages">Text language
-            <select id="languages">
-              <option value="ar">Arabic</option>
-              <option value="fa">Persian</option>
-              <option value="ar,fa">Arabic + Persian</option>
-              <option value="ur">Urdu</option>
-              <option value="ps">Pashto</option>
-              <option value="ku">Sorani Kurdish</option>
-              <option value="ug">Uyghur</option>
-            </select>
-          </label>
-        </div>
-
-        <div class="examples" aria-label="Example texts">
-          <span>Try an example</span>
-          <div class="example-list">
-            <button type="button" data-example="أعلنت المدينة افتتاح مكتبة جديدة." data-profile="search" data-languages="ar">Spelling folds</button>
-            <button type="button" data-example="ﻻ يوجد ﻛِﺘـﺎﺏ" data-profile="search" data-languages="ar">PDF forms</button>
-            <button type="button" data-example="کتاب تازه است." data-profile="search" data-languages="ar,fa">Persian</button>
-            <button type="button" data-example="ب ت ث ن ي" data-profile="loose" data-languages="ar">Dotless rasm</button>
-          </div>
-        </div>
-
-        <div class="panels">
-          <div class="panel panel-input">
-            <div class="panel-top"><label for="input"><span class="panel-number">01</span> Original text</label><button class="text-button" id="clear" type="button">Clear</button></div>
-            <textarea id="input" dir="auto" spellcheck="false" placeholder="Type or paste Arabic-script text…">ﻻ يوجد ﻛِﺘـﺎﺏ</textarea>
-          </div>
-          <div class="panel panel-result">
-            <div class="panel-top"><span class="panel-title"><span class="panel-number">02</span> Comparison key</span><button class="text-button" id="copy" type="button" disabled>Copy key</button></div>
-            <output id="key" class="key" dir="auto" aria-live="polite">Loading…</output>
-            <p class="result-note">This is the text agrep compares for matching.</p>
-          </div>
-        </div>
-
-        <div class="rule-panel">
-          <h3>Rules affecting this text</h3>
-          <p>A rule appears when turning it off alone would change the key.</p>
-          <div id="rules" class="rules" aria-live="polite"></div>
-        </div>
-        <p id="status" class="status" role="status">Loading the Go WebAssembly module…</p>
-      </section>
-
-      <footer>Read the <a href="https://github.com/MohamedElashri/agrep/blob/main/docs/NORMALIZATION.md">normalization reference</a> for rule definitions and caveats. <a href="GO-LICENSE.txt">Go runtime license</a>.</footer>
+      <nav class="header-nav">
+        <a href="index.html" class="active">Home</a>
+        <a href="docs/index.html">Docs</a>
+        <a href="playground/index.html">Playground</a>
+        <a href="docs/benchmarks.html">Benchmarks</a>
+        <a href="https://github.com/MohamedElashri/agrep" target="_blank" rel="noopener noreferrer" class="github-link">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          <span>GitHub</span>
+        </a>
+        <button id="theme-toggle" class="theme-toggle-btn" aria-label="Toggle Dark/Light Mode">
+          <svg class="sun-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          <svg class="moon-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+      </nav>
     </div>
-  </main>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero-section">
+    <div class="hero-container">
+      <p class="hero-kicker">Unicode-aware search tool</p>
+
+      <h1 class="hero-title">
+        Ultrafast, Unicode-aware search for Arabic-script text.
+      </h1>
+
+      <p class="hero-subtitle">
+        Standard tools like <code>grep</code> and <code>ripgrep</code> miss matches due to vocalization diacritics, presentation-form ligatures, letter variants, and diverse orthographies. <strong>agrep</strong> eliminates search blind spots with zero-allocation streaming normalization, dotless rasm reconstruction, and exact source byte mapping.
+      </p>
+
+      <div class="hero-actions">
+        <a href="docs/index.html" class="btn btn-primary">Read Documentation</a>
+        <a href="playground/index.html" class="btn btn-secondary">Interactive Playground</a>
+      </div>
+
+      <!-- Quick Install Box -->
+      <div class="hero-install">
+        <div class="install-bar">
+          <span class="install-prompt">$</span>
+          <code id="install-command"><span class="tok-cmd">curl</span> <span class="tok-flag">-fsSL</span> https://raw.githubusercontent.com/MohamedElashri/agrep/main/scripts/install.sh <span class="tok-punct">|</span> <span class="tok-cmd">bash</span></code>
+          <button id="copy-install-btn" class="install-copy-btn" aria-label="Copy install command" title="Copy to clipboard" data-copy-target="install-command">
+            <svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            <span class="copy-text">Copy</span>
+          </button>
+        </div>
+        <div class="install-meta">
+          <span>Or via Go: <button class="alt-install-btn" data-cmd="go install github.com/MohamedElashri/agrep/cmd/agrep@v0.1.1"><code>go install ...@v0.1.1</code></button></span>
+          <span class="install-meta-sep">·</span>
+          <a href="https://github.com/MohamedElashri/agrep/releases" target="_blank" rel="noopener noreferrer">Release binaries</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Demo Showcase -->
+  <section class="demo-section">
+    <div class="section-container">
+      <div class="section-header">
+        <p class="section-eyebrow">Interactive Comparison</p>
+        <h2>Why generic search fails on Arabic</h2>
+        <p class="section-desc">Arabic orthography requires normalization before matching. Standard grep tests raw bytes; agrep normalizes in memory while pointing back to the exact source bytes.</p>
+      </div>
+
+      <div class="demo-widget">
+        <div class="demo-nav" role="tablist" aria-label="Arabic search comparison scenarios">
+          <button class="demo-tab active" data-scenario="0" role="tab" aria-selected="true" tabindex="0">Tashkil (Vowels)</button>
+          <button class="demo-tab" data-scenario="1" role="tab" aria-selected="false" tabindex="-1">PDF Ligatures</button>
+          <button class="demo-tab" data-scenario="2" role="tab" aria-selected="false" tabindex="-1">Cross-Language (Persian)</button>
+          <button class="demo-tab" data-scenario="3" role="tab" aria-selected="false" tabindex="-1">Dotless Rasm (Manuscripts)</button>
+          <button class="demo-tab" data-scenario="4" role="tab" aria-selected="false" tabindex="-1">Fuzzy Levenshtein</button>
+        </div>
+
+        <div class="demo-display">
+          <div class="demo-col">
+            <div class="demo-box-label">Standard grep / ripgrep</div>
+            <div class="demo-box demo-box-fail" id="grep-box">
+              <div class="demo-cli-cmd"><span class="tok-prompt">$ </span><span class="tok-cmd">grep</span> <span class="tok-str">&#x27;مدرسه&#x27;</span> corpus.txt</div>
+              <div class="demo-result-text" dir="auto">(No match found — diacritics block exact byte search)</div>
+              <div class="demo-status-pill pill-fail">0 matches (missed text)</div>
+            </div>
+          </div>
+
+          <div class="demo-col">
+            <div class="demo-box-label">agrep (Arabic-script aware)</div>
+            <div class="demo-box demo-box-success" id="agrep-box">
+              <div class="demo-cli-cmd"><span class="tok-prompt">$ </span><span class="tok-cmd">agrep</span> <span class="tok-str">&#x27;مدرسه&#x27;</span> corpus.txt</div>
+              <div class="demo-result-text" dir="auto" id="agrep-match-text">هذه <mark>مَدْرَسَةٌ</mark> عريقة في المدينة.</div>
+              <div class="demo-status-pill pill-success">Match found · exact byte span [4:24]</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="demo-explainer" id="demo-explanation">
+          <strong>How it works:</strong> The query <code>مدرسه</code> automatically folds ta-marbuta (<code>ة</code> → <code>ه</code>) and strips vocalization diacritics (<em>fathah, dammah, tanwin</em>) during normalized key comparison, while preserving original source text and exact UTF-8 byte spans.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Key Capabilities Grid -->
+  <section class="features-section">
+    <div class="section-container">
+      <div class="section-header">
+        <p class="section-eyebrow">Technical Architecture</p>
+        <h2>Designed for linguistic precision and throughput</h2>
+        <p class="section-desc">agrep combines the linguistic correctness of specialized NLP packages with the streaming speed of modern system utilities.</p>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <span class="feature-num">01 / NORMALIZATION</span>
+          <h3>Streaming Unicode Normalization</h3>
+          <p>Zero-allocation Unicode NFD pipeline supporting 5 standard presets (<code>search</code>, <code>strict</code>, <code>loose</code>, <code>lucene</code>, <code>camel</code>) and granular flags to keep or fold specific marks.</p>
+          <a href="docs/normalization.html" class="feature-link">Read Normalization Docs →</a>
+        </div>
+
+        <div class="feature-card">
+          <span class="feature-num">02 / LANGUAGES</span>
+          <h3>Six Arabic-Script Languages</h3>
+          <p>First-class support for Persian (Farsi), Urdu, Pashto, Sorani Kurdish, and Uyghur. Retains distinct language alphabets or enables shared letter search across Arabic and Persian.</p>
+          <a href="docs/languages.html" class="feature-link">Read Language Support →</a>
+        </div>
+
+        <div class="feature-card">
+          <span class="feature-num">03 / MANUSCRIPTS</span>
+          <h3>Dotless Rasm & Myers Fuzzy</h3>
+          <p>Search unpointed historical manuscripts where <code>ب ت ث ن ي</code> share the dotless skeleton <code>ٮ</code>. Bit-parallel Myers algorithm handles typos, dialect variance, and OCR errors.</p>
+          <a href="docs/matching.html" class="feature-link">Read Matching Docs →</a>
+        </div>
+
+        <div class="feature-card">
+          <span class="feature-num">04 / ACCURACY</span>
+          <h3>Exact Source-Byte Spans</h3>
+          <p>Matches on normalized keys, but maps every span back to original text UTF-8 byte offsets. Even expanded presentation forms like <code>ﻻ</code> map back to the single source character.</p>
+          <a href="docs/cli.html" class="feature-link">Explore JSON Output →</a>
+        </div>
+
+        <div class="feature-card">
+          <span class="feature-num">05 / ENCODINGS</span>
+          <h3>Legacy Encodings & Transliteration</h3>
+          <p>Automatic detection for CP1256, ISO-8859-6, and UTF-16. Search Arabic corpora from a Latin keyboard using standard Buckwalter, ArabTeX, or ISO-233 transliteration schemes.</p>
+          <a href="docs/input.html" class="feature-link">Read Encodings Guide →</a>
+        </div>
+
+        <div class="feature-card">
+          <span class="feature-num">06 / EMBEDDABLE</span>
+          <h3>Modular Go Packages</h3>
+          <p>Use agrep as a standalone CLI or import modular Go packages (<code>arabic</code>, <code>match</code>, <code>scan</code>) directly into your Go services, data pipelines, and search indexes.</p>
+          <a href="docs/development.html" class="feature-link">View Go Packages →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Performance Benchmark Section -->
+  <section class="benchmark-section">
+    <div class="section-container">
+      <div class="benchmark-card">
+        <div class="benchmark-content">
+          <p class="section-eyebrow">Throughput & Benchmarks</p>
+          <h2>Zero-allocation hot paths and streaming I/O</h2>
+          <p>
+            agrep processes multi-gigabyte corpora using zero-allocation streaming normalization and parallel directory traversal. It outperforms generic tools on Arabic while performing full Unicode decomposition.
+          </p>
+
+          <div class="benchmark-metrics">
+            <div class="benchmark-metric">
+              <div class="metric-val">4.3×</div>
+              <div class="metric-lbl">Faster than ripgrep</div>
+              <p class="metric-desc">381 ms vs 1,643 ms on diacritic-insensitive search across 4.8 GiB OpenITI.</p>
+            </div>
+            <div class="benchmark-metric">
+              <div class="metric-val">0 B/op</div>
+              <div class="metric-lbl">Zero Allocations</div>
+              <p class="metric-desc">Streaming NFD normalization hot path achieves 0 allocs/op in Go benchmarks.</p>
+            </div>
+            <div class="benchmark-metric">
+              <div class="metric-val">19 MiB/s</div>
+              <div class="metric-lbl">Throughput</div>
+              <p class="metric-desc">Vocalization diacritics stripping across 390,168 matched corpus lines.</p>
+            </div>
+            <div class="benchmark-metric">
+              <div class="metric-val">100%</div>
+              <div class="metric-lbl">Exact Byte Spans</div>
+              <p class="metric-desc">Every match maps back to exact UTF-8 source offsets in terminal and JSON.</p>
+            </div>
+          </div>
+
+          <div class="benchmark-cta">
+            <a href="docs/benchmarks.html" class="benchmark-link">View complete benchmark methodology and dataset results →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Go Package Code Snippet Section -->
+  <section class="code-section">
+    <div class="section-container">
+      <div class="section-header">
+        <p class="section-eyebrow">Embeddable Library</p>
+        <h2>Import into your Go application</h2>
+        <p class="section-desc">Integrate Unicode-aware Arabic normalization and matching directly into your Go services and pipelines.</p>
+      </div>
+
+      <div class="code-showcase">
+        <div class="code-block" data-lang="go">
+          <div class="code-bar">
+            <span class="code-lang">Go</span>
+            <button class="copy-btn" type="button" aria-label="Copy Go snippet" data-copy-target="go-snippet">Copy</button>
+          </div>
+          <pre><code id="go-snippet" class="language-go"><span class="tok-kw">package</span> <span class="tok-ident">main</span>
+
+<span class="tok-kw">import</span> <span class="tok-punct">(</span>
+    <span class="tok-str">&quot;fmt&quot;</span>
+    <span class="tok-str">&quot;github.com/MohamedElashri/agrep/arabic&quot;</span>
+    <span class="tok-str">&quot;github.com/MohamedElashri/agrep/match&quot;</span>
+<span class="tok-punct">)</span>
+
+<span class="tok-kw">func</span> <span class="tok-fn">main</span><span class="tok-punct">(</span><span class="tok-punct">)</span> <span class="tok-punct">{</span>
+    <span class="tok-comment">// Normalization collapses diacritics and spelling variants</span>
+    <span class="tok-ident">p</span> <span class="tok-op">:=</span> <span class="tok-ident">arabic</span><span class="tok-punct">.</span><span class="tok-ident">ProfileSearch</span>
+    <span class="tok-ident">key1</span> <span class="tok-op">:=</span> <span class="tok-ident">p</span><span class="tok-punct">.</span><span class="tok-fn">Normalize</span><span class="tok-punct">(</span><span class="tok-str">&quot;مَدْرَسَةٌ&quot;</span><span class="tok-punct">)</span>
+    <span class="tok-ident">key2</span> <span class="tok-op">:=</span> <span class="tok-ident">p</span><span class="tok-punct">.</span><span class="tok-fn">Normalize</span><span class="tok-punct">(</span><span class="tok-str">&quot;مدرسه&quot;</span><span class="tok-punct">)</span>
+    <span class="tok-ident">fmt</span><span class="tok-punct">.</span><span class="tok-fn">Println</span><span class="tok-punct">(</span><span class="tok-ident">key1</span> <span class="tok-op">==</span> <span class="tok-ident">key2</span><span class="tok-punct">)</span> <span class="tok-comment">// true</span>
+
+    <span class="tok-comment">// High-performance Myers fuzzy search</span>
+    <span class="tok-ident">m</span><span class="tok-punct">,</span> <span class="tok-ident">_</span> <span class="tok-op">:=</span> <span class="tok-ident">match</span><span class="tok-punct">.</span><span class="tok-fn">NewFuzzy</span><span class="tok-punct">(</span><span class="tok-str">&quot;كتاب&quot;</span><span class="tok-punct">,</span> <span class="tok-num">1</span><span class="tok-punct">,</span> <span class="tok-ident">p</span><span class="tok-punct">)</span>
+    <span class="tok-ident">matches</span> <span class="tok-op">:=</span> <span class="tok-ident">m</span><span class="tok-punct">.</span><span class="tok-fn">FindAll</span><span class="tok-punct">(</span><span class="tok-str">&quot;هذا كتلب جديد&quot;</span><span class="tok-punct">,</span> <span class="tok-op">-</span><span class="tok-num">1</span><span class="tok-punct">)</span>
+    <span class="tok-ident">fmt</span><span class="tok-punct">.</span><span class="tok-fn">Printf</span><span class="tok-punct">(</span><span class="tok-str">&quot;Matched %d spans\n&quot;</span><span class="tok-punct">,</span> <span class="tok-type">len</span><span class="tok-punct">(</span><span class="tok-ident">matches</span><span class="tok-punct">)</span><span class="tok-punct">)</span>
+<span class="tok-punct">}</span></code></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-brand-col">
+        <a href="index.html" class="brand">
+          <span class="brand-mark" aria-hidden="true">ا</span>
+          <span class="brand-text">agrep<span class="brand-dot">.</span></span>
+        </a>
+        <p class="footer-tagline">Ultrafast Unicode-aware search tool tailored for Arabic-script text and multi-lingual archives.</p>
+        <p class="footer-copyright">Released under the MIT License.<br>© Mohamed Elashri and agrep contributors.</p>
+      </div>
+
+      <div class="footer-links-col">
+        <h4>Documentation</h4>
+        <ul>
+          <li><a href="docs/index.html">Overview & Quickstart</a></li>
+          <li><a href="docs/cli.html">Command-Line Reference</a></li>
+          <li><a href="docs/normalization.html">Unicode Normalization</a></li>
+          <li><a href="docs/languages.html">Language Orthographies</a></li>
+          <li><a href="docs/matching.html">Rasm & Fuzzy Search</a></li>
+          <li><a href="docs/input.html">Encodings & Transliteration</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-links-col">
+        <h4>Ecosystem</h4>
+        <ul>
+          <li><a href="playground/index.html">Normalization Playground</a></li>
+          <li><a href="docs/benchmarks.html">Performance Benchmarks</a></li>
+          <li><a href="docs/terminals.html">Terminal Color & BiDi</a></li>
+          <li><a href="docs/development.html">Agent Integration (Codex/Claude)</a></li>
+          <li><a href="docs/distribution.html">Release Checklist</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-links-col">
+        <h4>Community</h4>
+        <ul>
+          <li><a href="https://github.com/MohamedElashri/agrep" target="_blank" rel="noopener noreferrer">GitHub Repository</a></li>
+          <li><a href="https://github.com/MohamedElashri/agrep/releases" target="_blank" rel="noopener noreferrer">Release Downloads</a></li>
+          <li><a href="https://pkg.go.dev/github.com/MohamedElashri/agrep" target="_blank" rel="noopener noreferrer">Go Reference (pkg.go.dev)</a></li>
+          <li><a href="https://github.com/MohamedElashri/agrep/issues" target="_blank" rel="noopener noreferrer">Issue Tracker</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+
+  <script src="site.js"></script>
+  <script src="landing.js"></script>
 </body>
 </html>

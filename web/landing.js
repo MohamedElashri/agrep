@@ -2,42 +2,26 @@
 "use strict";
 
 document.addEventListener("DOMContentLoaded", () => {
-  // 1. Copy install command
-  const copyInstallBtn = document.getElementById("copy-install-btn");
   const installCmdEl = document.getElementById("install-command");
 
-  if (copyInstallBtn && installCmdEl) {
-    copyInstallBtn.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(installCmdEl.textContent.trim());
-        const copyText = copyInstallBtn.querySelector(".copy-text");
-        if (copyText) {
-          const original = copyText.textContent;
-          copyText.textContent = "Copied!";
-          setTimeout(() => {
-            copyText.textContent = original;
-          }, 2000);
-        }
-      } catch (e) {
-        console.error("Clipboard error:", e);
-      }
-    });
-  }
-
-  // 2. Alt install buttons
+  // 1. Alt install command button handler
   document.querySelectorAll(".alt-install-btn").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const cmd = btn.getAttribute("data-cmd");
       if (!cmd) return;
       if (installCmdEl) {
-        installCmdEl.textContent = cmd;
+        // Highlight the updated install command
+        if (window.agrepHighlight && typeof window.agrepHighlight.highlightShell === "function") {
+          installCmdEl.innerHTML = window.agrepHighlight.highlightShell(cmd);
+        } else {
+          installCmdEl.textContent = cmd;
+        }
       }
       try {
         await navigator.clipboard.writeText(cmd);
-        const originalText = btn.textContent;
-        btn.textContent = "Copied to clipboard!";
+        btn.classList.add("copied");
         setTimeout(() => {
-          btn.textContent = originalText;
+          btn.classList.remove("copied");
         }, 2000);
       } catch (e) {
         console.error("Clipboard error:", e);
@@ -45,7 +29,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // 3. Interactive Comparison Demo
+  // 2. Interactive Comparison Demo Scenarios
   const scenarios = [
     {
       name: "Tashkil (Vowels)",
@@ -89,27 +73,65 @@ document.addEventListener("DOMContentLoaded", () => {
     },
   ];
 
-  const demoTabs = document.querySelectorAll(".demo-tab");
+  const demoTabs = Array.from(document.querySelectorAll(".demo-tab"));
   const grepCmdEl = document.querySelector("#grep-box .demo-cli-cmd");
   const grepResultEl = document.querySelector("#grep-box .demo-result-text");
   const agrepCmdEl = document.querySelector("#agrep-box .demo-cli-cmd");
   const agrepMatchEl = document.getElementById("agrep-match-text");
   const demoExplanationEl = document.getElementById("demo-explanation");
 
-  demoTabs.forEach((tab) => {
-    tab.addEventListener("click", () => {
-      demoTabs.forEach((t) => t.classList.remove("active"));
-      tab.classList.add("active");
+  function applyCmdHighlight(el, cmdText) {
+    if (!el) return;
+    if (window.agrepHighlight && typeof window.agrepHighlight.highlightShell === "function") {
+      el.innerHTML = window.agrepHighlight.highlightShell(cmdText);
+    } else {
+      el.textContent = cmdText;
+    }
+  }
 
-      const idx = parseInt(tab.getAttribute("data-scenario"), 10);
-      const sc = scenarios[idx];
-      if (!sc) return;
+  function activateTab(index) {
+    if (index < 0 || index >= scenarios.length) return;
+    const sc = scenarios[index];
+    if (!sc) return;
 
-      if (grepCmdEl) grepCmdEl.textContent = sc.grepCmd;
-      if (grepResultEl) grepResultEl.textContent = sc.grepResult;
-      if (agrepCmdEl) agrepCmdEl.textContent = sc.agrepCmd;
-      if (agrepMatchEl) agrepMatchEl.innerHTML = sc.agrepResult;
-      if (demoExplanationEl) demoExplanationEl.innerHTML = sc.explanation;
+    demoTabs.forEach((t, i) => {
+      const isActive = i === index;
+      t.classList.toggle("active", isActive);
+      t.setAttribute("aria-selected", isActive ? "true" : "false");
+      t.setAttribute("tabindex", isActive ? "0" : "-1");
+    });
+
+    applyCmdHighlight(grepCmdEl, sc.grepCmd);
+    if (grepResultEl) grepResultEl.textContent = sc.grepResult;
+    applyCmdHighlight(agrepCmdEl, sc.agrepCmd);
+    if (agrepMatchEl) agrepMatchEl.innerHTML = sc.agrepResult;
+    if (demoExplanationEl) demoExplanationEl.innerHTML = sc.explanation;
+  }
+
+  // Initial syntax highlight on page load for scenario 0
+  activateTab(0);
+
+  // Click & keyboard navigation for tabs
+  demoTabs.forEach((tab, idx) => {
+    tab.addEventListener("click", () => activateTab(idx));
+
+    tab.addEventListener("keydown", (e) => {
+      let targetIdx = null;
+      if (e.key === "ArrowRight") {
+        targetIdx = (idx + 1) % demoTabs.length;
+      } else if (e.key === "ArrowLeft") {
+        targetIdx = (idx - 1 + demoTabs.length) % demoTabs.length;
+      } else if (e.key === "Home") {
+        targetIdx = 0;
+      } else if (e.key === "End") {
+        targetIdx = demoTabs.length - 1;
+      }
+
+      if (targetIdx !== null) {
+        e.preventDefault();
+        demoTabs[targetIdx].focus();
+        activateTab(targetIdx);
+      }
     });
   });
 });
