@@ -132,6 +132,8 @@ Here is the body.
             self.assertTrue(norm_doc.exists())
             bench_doc = docs_dir / "benchmarks.html"
             self.assertTrue(bench_doc.exists())
+            pkg_doc = docs_dir / "package.html"
+            self.assertTrue(pkg_doc.exists())
 
             # Check that all 4 tables in benchmarks.html are rendered
             bench_content = bench_doc.read_text(encoding="utf-8")
@@ -139,15 +141,21 @@ Here is the body.
             self.assertIn('<th class="text-left">Item</th>', bench_content)
             self.assertIn('<th class="text-left">Value</th>', bench_content)
 
+            # Check package.html tables and content
+            pkg_content = pkg_doc.read_text(encoding="utf-8")
+            self.assertEqual(pkg_content.count("<table"), 2)
+            self.assertIn("NormalizeMapped", pkg_content)
+
             # Check Search Index
             search_index_file = docs_dir / "search-index.json"
             self.assertTrue(search_index_file.exists())
             index_data = json.loads(search_index_file.read_text(encoding="utf-8"))
             self.assertIsInstance(index_data, list)
-            self.assertGreaterEqual(len(index_data), 10)
+            self.assertGreaterEqual(len(index_data), 11)
             titles = [item["title"] for item in index_data]
             self.assertIn("Command-Line Reference", titles)
             self.assertIn("Unicode Normalization Reference", titles)
+            self.assertIn("Go Package & API Guide", titles)
 
             # Check Playground
             playground_dir = out_dir / "playground"

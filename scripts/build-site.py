@@ -14,6 +14,7 @@ from pathlib import Path
 DOC_FILE_MAP = {
     "index.md": "index.html",
     "cli.md": "cli.html",
+    "package.md": "package.html",
     "normalization.md": "normalization.html",
     "languages.md": "languages.html",
     "matching.md": "matching.html",
@@ -824,6 +825,7 @@ def render_site_footer(relative_prefix: str = "") -> str:
         <ul>
           <li><a href="{relative_prefix}docs/index.html">Overview & Quickstart</a></li>
           <li><a href="{relative_prefix}docs/cli.html">Command-Line Reference</a></li>
+          <li><a href="{relative_prefix}docs/package.html">Go Package & API Guide</a></li>
           <li><a href="{relative_prefix}docs/normalization.html">Unicode Normalization</a></li>
           <li><a href="{relative_prefix}docs/languages.html">Language Orthographies</a></li>
           <li><a href="{relative_prefix}docs/matching.html">Rasm & Fuzzy Search</a></li>
@@ -1103,21 +1105,26 @@ def render_landing_page() -> str:
 
 import (
     "fmt"
+
     "github.com/MohamedElashri/agrep/arabic"
     "github.com/MohamedElashri/agrep/match"
 )
 
 func main() {
-    // Normalization collapses diacritics and spelling variants
+    // 1. Normalization collapses diacritics and spelling variants
     p := arabic.ProfileSearch
     key1 := p.Normalize("مَدْرَسَةٌ")
     key2 := p.Normalize("مدرسه")
     fmt.Println(key1 == key2) // true
 
-    // High-performance Myers fuzzy search
-    m, _ := match.NewFuzzy("كتاب", 1, p)
-    matches := m.FindAll("هذا كتلب جديد", -1)
-    fmt.Printf("Matched %d spans\\n", len(matches))
+    // 2. Myers fuzzy search with exact source span mapping
+    m, _ := match.NewFuzzy([]string{"كتاب"}, p, false, 1)
+    text := "هذا كتلب جديد"
+    normKey, idx := p.NormalizeMapped(text)
+    for _, span := range m.FindAll(normKey) {
+        start, end := arabic.MapSpan(idx, span.Start, span.End)
+        fmt.Printf("Matched %q at [%d:%d]\\n", text[start:end], start, end)
+    }
 }"""
     go_code_highlighted = highlight_go(go_code_raw)
 
@@ -1258,7 +1265,7 @@ func main() {
           <span class="feature-num">06 / EMBEDDABLE</span>
           <h3>Modular Go Packages</h3>
           <p>Use agrep as a standalone CLI or import modular Go packages (<code>arabic</code>, <code>match</code>, <code>scan</code>) directly into your Go services, data pipelines, and search indexes.</p>
-          <a href="docs/development.html" class="feature-link">View Go Packages →</a>
+          <a href="docs/package.html" class="feature-link">Explore Go Package Guide →</a>
         </div>
       </div>
     </div>
@@ -1323,6 +1330,10 @@ func main() {
           </div>
           <pre><code id="go-snippet" class="language-go">{go_code_highlighted}</code></pre>
         </div>
+      </div>
+
+      <div class="code-showcase-cta" style="text-align: center; margin-top: 1.25rem;">
+        <a href="docs/package.html" class="feature-link">Read the complete Go Package Guide with examples &amp; API recipes →</a>
       </div>
     </div>
   </section>

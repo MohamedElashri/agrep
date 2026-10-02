@@ -234,7 +234,7 @@
           <span class="feature-num">06 / EMBEDDABLE</span>
           <h3>Modular Go Packages</h3>
           <p>Use agrep as a standalone CLI or import modular Go packages (<code>arabic</code>, <code>match</code>, <code>scan</code>) directly into your Go services, data pipelines, and search indexes.</p>
-          <a href="docs/development.html" class="feature-link">View Go Packages →</a>
+          <a href="docs/package.html" class="feature-link">Explore Go Package Guide →</a>
         </div>
       </div>
     </div>
@@ -301,23 +301,32 @@
 
 <span class="tok-kw">import</span> <span class="tok-punct">(</span>
     <span class="tok-str">&quot;fmt&quot;</span>
+
     <span class="tok-str">&quot;github.com/MohamedElashri/agrep/arabic&quot;</span>
     <span class="tok-str">&quot;github.com/MohamedElashri/agrep/match&quot;</span>
 <span class="tok-punct">)</span>
 
 <span class="tok-kw">func</span> <span class="tok-fn">main</span><span class="tok-punct">(</span><span class="tok-punct">)</span> <span class="tok-punct">{</span>
-    <span class="tok-comment">// Normalization collapses diacritics and spelling variants</span>
+    <span class="tok-comment">// 1. Normalization collapses diacritics and spelling variants</span>
     <span class="tok-ident">p</span> <span class="tok-op">:=</span> <span class="tok-ident">arabic</span><span class="tok-punct">.</span><span class="tok-ident">ProfileSearch</span>
     <span class="tok-ident">key1</span> <span class="tok-op">:=</span> <span class="tok-ident">p</span><span class="tok-punct">.</span><span class="tok-fn">Normalize</span><span class="tok-punct">(</span><span class="tok-str">&quot;مَدْرَسَةٌ&quot;</span><span class="tok-punct">)</span>
     <span class="tok-ident">key2</span> <span class="tok-op">:=</span> <span class="tok-ident">p</span><span class="tok-punct">.</span><span class="tok-fn">Normalize</span><span class="tok-punct">(</span><span class="tok-str">&quot;مدرسه&quot;</span><span class="tok-punct">)</span>
     <span class="tok-ident">fmt</span><span class="tok-punct">.</span><span class="tok-fn">Println</span><span class="tok-punct">(</span><span class="tok-ident">key1</span> <span class="tok-op">==</span> <span class="tok-ident">key2</span><span class="tok-punct">)</span> <span class="tok-comment">// true</span>
 
-    <span class="tok-comment">// High-performance Myers fuzzy search</span>
-    <span class="tok-ident">m</span><span class="tok-punct">,</span> <span class="tok-ident">_</span> <span class="tok-op">:=</span> <span class="tok-ident">match</span><span class="tok-punct">.</span><span class="tok-fn">NewFuzzy</span><span class="tok-punct">(</span><span class="tok-str">&quot;كتاب&quot;</span><span class="tok-punct">,</span> <span class="tok-num">1</span><span class="tok-punct">,</span> <span class="tok-ident">p</span><span class="tok-punct">)</span>
-    <span class="tok-ident">matches</span> <span class="tok-op">:=</span> <span class="tok-ident">m</span><span class="tok-punct">.</span><span class="tok-fn">FindAll</span><span class="tok-punct">(</span><span class="tok-str">&quot;هذا كتلب جديد&quot;</span><span class="tok-punct">,</span> <span class="tok-op">-</span><span class="tok-num">1</span><span class="tok-punct">)</span>
-    <span class="tok-ident">fmt</span><span class="tok-punct">.</span><span class="tok-fn">Printf</span><span class="tok-punct">(</span><span class="tok-str">&quot;Matched %d spans\n&quot;</span><span class="tok-punct">,</span> <span class="tok-type">len</span><span class="tok-punct">(</span><span class="tok-ident">matches</span><span class="tok-punct">)</span><span class="tok-punct">)</span>
+    <span class="tok-comment">// 2. Myers fuzzy search with exact source span mapping</span>
+    <span class="tok-ident">m</span><span class="tok-punct">,</span> <span class="tok-ident">_</span> <span class="tok-op">:=</span> <span class="tok-ident">match</span><span class="tok-punct">.</span><span class="tok-fn">NewFuzzy</span><span class="tok-punct">(</span><span class="tok-punct">[</span><span class="tok-punct">]</span><span class="tok-type">string</span><span class="tok-punct">{</span><span class="tok-str">&quot;كتاب&quot;</span><span class="tok-punct">}</span><span class="tok-punct">,</span> <span class="tok-ident">p</span><span class="tok-punct">,</span> <span class="tok-type">false</span><span class="tok-punct">,</span> <span class="tok-num">1</span><span class="tok-punct">)</span>
+    <span class="tok-ident">text</span> <span class="tok-op">:=</span> <span class="tok-str">&quot;هذا كتلب جديد&quot;</span>
+    <span class="tok-ident">normKey</span><span class="tok-punct">,</span> <span class="tok-ident">idx</span> <span class="tok-op">:=</span> <span class="tok-ident">p</span><span class="tok-punct">.</span><span class="tok-fn">NormalizeMapped</span><span class="tok-punct">(</span><span class="tok-ident">text</span><span class="tok-punct">)</span>
+    <span class="tok-kw">for</span> <span class="tok-ident">_</span><span class="tok-punct">,</span> <span class="tok-ident">span</span> <span class="tok-op">:=</span> <span class="tok-kw">range</span> <span class="tok-ident">m</span><span class="tok-punct">.</span><span class="tok-fn">FindAll</span><span class="tok-punct">(</span><span class="tok-ident">normKey</span><span class="tok-punct">)</span> <span class="tok-punct">{</span>
+        <span class="tok-ident">start</span><span class="tok-punct">,</span> <span class="tok-ident">end</span> <span class="tok-op">:=</span> <span class="tok-ident">arabic</span><span class="tok-punct">.</span><span class="tok-fn">MapSpan</span><span class="tok-punct">(</span><span class="tok-ident">idx</span><span class="tok-punct">,</span> <span class="tok-ident">span</span><span class="tok-punct">.</span><span class="tok-ident">Start</span><span class="tok-punct">,</span> <span class="tok-ident">span</span><span class="tok-punct">.</span><span class="tok-ident">End</span><span class="tok-punct">)</span>
+        <span class="tok-ident">fmt</span><span class="tok-punct">.</span><span class="tok-fn">Printf</span><span class="tok-punct">(</span><span class="tok-str">&quot;Matched %q at [%d:%d]\n&quot;</span><span class="tok-punct">,</span> <span class="tok-ident">text</span><span class="tok-punct">[</span><span class="tok-ident">start</span><span class="tok-punct">:</span><span class="tok-ident">end</span><span class="tok-punct">]</span><span class="tok-punct">,</span> <span class="tok-ident">start</span><span class="tok-punct">,</span> <span class="tok-ident">end</span><span class="tok-punct">)</span>
+    <span class="tok-punct">}</span>
 <span class="tok-punct">}</span></code></pre>
         </div>
+      </div>
+
+      <div class="code-showcase-cta" style="text-align: center; margin-top: 1.25rem;">
+        <a href="docs/package.html" class="feature-link">Read the complete Go Package Guide with examples &amp; API recipes →</a>
       </div>
     </div>
   </section>
@@ -338,6 +347,7 @@
         <ul>
           <li><a href="docs/index.html">Overview & Quickstart</a></li>
           <li><a href="docs/cli.html">Command-Line Reference</a></li>
+          <li><a href="docs/package.html">Go Package & API Guide</a></li>
           <li><a href="docs/normalization.html">Unicode Normalization</a></li>
           <li><a href="docs/languages.html">Language Orthographies</a></li>
           <li><a href="docs/matching.html">Rasm & Fuzzy Search</a></li>

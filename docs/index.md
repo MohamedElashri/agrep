@@ -129,6 +129,7 @@ agrep --json 'الذكاء الاصطناعي' articles/
 Explore the sections of the documentation to master `agrep`:
 
 - [Command-Line Reference](CLI.md) — Comprehensive guide to flags, search modes, JSON schema, and updater options.
+- [Go Package & API Guide](PACKAGE.md) — Embedding agrep as a Go library: linguistic normalization, matchers, streaming scanner, and span mapping.
 - [Unicode Normalization](NORMALIZATION.md) — Normalization presets (`search`, `strict`, `loose`, `lucene`, `camel`), rule tables, and citations.
 - [Arabic-Script Languages](LANGUAGES.md) — Alphabet rules, ZWNJ handling, and cross-language folds for Persian, Urdu, Pashto, Sorani Kurdish, and Uyghur.
 - [Rasm & Fuzzy Matching](MATCHING.md) — Consonant skeletons, Levenshtein distance semantics, and Myers algorithm details.
