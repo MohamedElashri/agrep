@@ -194,6 +194,45 @@ Here is the body.
             self.assertIn('application/ld+json', norm_content)
             self.assertIn('BreadcrumbList', norm_content)
 
+    def test_javascript_assets_and_highlighting(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_dir = Path(tmpdir)
+            build_site_mod.build_site(REPO_ROOT, out_dir)
+
+            site_js = out_dir / "site.js"
+            landing_js = out_dir / "landing.js"
+            self.assertTrue(site_js.exists())
+            self.assertTrue(landing_js.exists())
+
+            # Ensure no Python-style named regex groups in JS files
+            for js_file in [site_js, landing_js]:
+                content = js_file.read_text(encoding="utf-8")
+                self.assertNotIn("(?P<", content)
+
+            # Smoke check highlightShell using node if available
+            try:
+                node_script = """
+const fs = require('fs');
+const siteCode = fs.readFileSync(process.argv[1], 'utf8');
+const localStorage = { getItem: () => null, setItem: () => {} };
+const document = { documentElement: { setAttribute: () => {}, getAttribute: () => 'light' }, addEventListener: () => {} };
+const window = { matchMedia: () => ({ matches: false }) };
+new Function('window', 'document', 'localStorage', siteCode)(window, document, localStorage);
+const out = window.agrepHighlight.highlightShell('$ agrep --fuzzy=1 "foo" bar.txt');
+if (!out.includes('tok-cmd') || !out.includes('tok-flag')) {
+    process.exit(1);
+}
+"""
+                result = subprocess.run(
+                    ["node", "-e", node_script, str(site_js)],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, f"node execution failed: {result.stderr}")
+            except FileNotFoundError:
+                pass
+
 
 if __name__ == "__main__":
     unittest.main()
