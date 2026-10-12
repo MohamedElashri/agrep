@@ -40,18 +40,6 @@
     const lines = code.split("\n");
     const out = [];
 
-    const tokenRe = new RegExp(
-      "(?P<prompt>^\\s*[\\$#]\\s+)" +
-      "|(?P<comment>#.*$)" +
-      "|(?P<str>\"(?:[^\"\\\\]|\\\\.)*\"|'[^']*')" +
-      "|(?P<flag>--?[a-zA-Z0-9_\\-]+(?:=[^\\s'\"]+)?)" +
-      "|(?P<op>\\|{1,2}|&&|>>?|<<?|;)" +
-      "|(?P<var>\\$[a-zA-Z_0-9]+|[A-Z_]{2,}=(?=\\S))" +
-      "|(?P<word>[^\\s\"'|><;]+)" +
-      "|(?P<space>\\s+)",
-      "g"
-    );
-
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed) {
@@ -65,7 +53,6 @@
 
       let isFirstWord = true;
       let lineHtml = "";
-      let lastIdx = 0;
 
       // Match tokens using regex
       const re = /(^\s*[\$#]\s+)|(#.*$)|("(?:[^"\\]|\\.)*"|'[^']*')|(--?[a-zA-Z0-9_\-]+(?:=[^\s'"]+)?)|(\|{1,2}|&&|>>?|<<?|;)|(\$[a-zA-Z_0-9]+|[A-Z_]{2,}=(?=\S))|([^\s"'|><;]+)|(\s+)/g;
