@@ -40,7 +40,9 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v5.0.0; sanad: ref=v6.0.0
       - name: Build site, docs, and playground
-        run: bash scripts/build-playground.sh
+        run: |
+          bash scripts/build-playground.sh
+          python3 -B scripts/test_build_site.py
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v4.0.0; sanad: ref=v5.0.0
         with:
