@@ -1,141 +1,140 @@
 ---
 title: "Overview & Quickstart"
-description: "Introduction to agrep, architectural overview, search mechanics, and getting started with Arabic-script search."
+description: "What agrep does, how a search runs, and how to install and start using it."
 category: "Getting Started"
 order: 1
 ---
 
-# agrep Documentation
+# agrep documentation
 
-`agrep` is an ultrafast, Unicode-aware search tool tailored specifically for Arabic-script text. While traditional search tools like GNU grep and ripgrep treat text as raw byte sequences or standard Unicode codepoints, `agrep` understands the linguistic, orthographic, and typographical realities of Arabic-script languages.
+`agrep` searches Arabic-script text. GNU grep and ripgrep compare bytes, so
+`مدرسه` does not find `مَدْرَسَة`. agrep normalizes both the query and each
+line before comparing them, then prints the original line and the byte offsets
+of the match in it. It supports Arabic (Modern Standard and Classical),
+Persian, Urdu, Pashto, Sorani Kurdish, and Uyghur.
 
-Whether searching modern Modern Standard Arabic (MSA), Classical Arabic texts, Persian (*Farsi*), Urdu, Pashto, Sorani Kurdish, or Uyghur, `agrep` bridges the gap between how queries are typed and how text appears in digitized corpora.
+## Why byte search misses Arabic text
 
----
+1. **Diacritics (*tashkil*).** Voweled text carries *fathah*, *kasrah*,
+   *dammah*, *sukun*, and *shaddah*. A search for `مدرسه` misses `مَدْرَسَة`
+   unless the marks are stripped before comparison.
+2. **Spelling variants.** Writers interchange `أ`, `إ`, `آ`, and `ا`; `ة`
+   (*ta-marbuta*) and `ه`; and `ى` (*alef maksura*) and `ي`.
+3. **Presentation forms.** Text extracted from PDFs often uses legacy
+   presentation forms such as `ﻻ` (U+FEFB) instead of `ل` + `ا`.
+4. **Other orthographies.** Persian/Urdu `ک` and Arabic `ك`, or Persian `ی`
+   and Arabic `ي`, look alike but are different codepoints.
+5. **Manuscripts and OCR.** Early manuscripts omit consonant dots (*i'jam*),
+   so only the skeleton (*rasm*) can be compared. Scanned text adds OCR
+   errors, which need edit-distance matching.
 
-## The Challenge of Arabic Search
+## Pipeline
 
-Searching Arabic-script corpora with generic regex or byte-matching tools frequently fails to find relevant text:
-
-1. **Diacritics (*Tashkil*):** Texts often include vowel marks (*fathah*, *kasrah*, *dammah*, *sukun*, *shaddah*). A search for `مدرسه` will miss `مَدْرَسَة` unless diacritics are stripped during comparison.
-2. **Spelling Variants:** Different spelling habits interchange `أ`, `إ`, `آ`, and `ا`, or `ة` (*ta-marbuta*) and `ه` (*ha*), or `ى` (*alef maksura*) and `ي` (*yeh*).
-3. **Presentation Forms & Ligatures:** Extracted text from PDFs often contains legacy Unicode presentation forms (e.g., `ﻻ` U+FEFB) rather than decomposed letter sequences (`ل` + `ا`).
-4. **Multi-Language Orthographies:** Letters like `ک` (Persian/Urdu Keheh) and `ك` (Arabic Kaf), or `ی` (Farsi Yeh) and `ي` (Arabic Yeh) look similar but use different codepoints.
-5. **Historical Manuscripts & OCR:** Early manuscripts lack consonant dots (*i'jam*), requiring consonant skeleton (*rasm*) matching. Scanned documents introduce OCR errors requiring fuzzy Levenshtein distance.
-
-`agrep` solves all these problems while preserving original text formatting, line numbers, and exact UTF-8 byte offsets for match highlighting.
-
----
-
-## Architectural Pipeline
-
-Every query and input stream in `agrep` flows through a streaming, zero-allocation pipeline:
+Every input line goes through these stages:
 
 ```text
-Input Stream (File, stdin, or Archive)
+Input (file, stdin, or HTML/EPUB with -tags formats)
                   │
                   ▼
-         [ 1. Input Decoding ]  ──► CP1256, ISO-8859-6, UTF-16, or UTF-8
+         [ 1. Input decoding ]  ──► UTF-8, CP1256, ISO-8859-6, or UTF-16
                   │
                   ▼
-         [ 2. Transliteration ] ──► Buckwalter, ArabTeX, or ISO-233 query decoding
+         [ 2. Transliteration ] ──► Buckwalter, ArabTeX, or ISO 233 (query only)
                   │
                   ▼
          [ 3. Normalization ]   ──► Presentation expansion, NFD, tashkil stripping,
-                  │                 letter folding, and language adjustments
+                  │                 letter folding, and language rules
                   ▼
-         [ 4. Match Engine ]    ──► Streaming Literal, Myers Fuzzy, or Regex
+         [ 4. Matching ]        ──► Literal, Myers fuzzy, or regex
                   │
                   ▼
-         [ 5. Span Mapping ]    ──► Re-maps normalized match bounds back to
-                  │                 exact source-line byte offsets
+         [ 5. Span mapping ]    ──► Maps normalized match bounds back to
+                  │                 byte offsets in the original line
                   ▼
-         [ 6. Formatted Output ]──► Colored terminal (with RTL isolates) or JSON Lines
+         [ 6. Output ]          ──► Colored terminal text (with RTL isolates) or JSON Lines
 ```
-
----
 
 ## Quickstart
 
 ### Installation
 
-Install via the automated install script:
+With the install script:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/MohamedElashri/agrep/main/scripts/install.sh | bash
 ```
 
-Or install via Go:
+Or with Go:
 
 ```sh
 go install github.com/MohamedElashri/agrep/cmd/agrep@latest
 ```
 
-### Common Search Scenarios
+On Windows, download the zip from
+[GitHub Releases](https://github.com/MohamedElashri/agrep/releases/latest).
+Windows builds are not tested in CI.
 
-#### 1. Diacritic-Insensitive Search
+### Examples
 
-Matches across full tashkil, tatweel (*kashida*), and spelling variations:
+#### Ignore diacritics and spelling variants
+
+The default profile ignores tashkil, tatweel (*kashida*), and common spelling variants:
 
 ```sh
 # Matches 'مَدْرَسَة', 'مدرسه', 'مَـدْرَسَـة'
 agrep 'مدرسه' documents/
 ```
 
-#### 2. Cross-Language Search (Persian & Arabic)
+#### Search Arabic and Persian together
 
-Match both Arabic `كتاب` and Persian `کتاب` in mixed corpora:
+Find both Arabic `كتاب` and Persian `کتاب` in a mixed corpus:
 
 ```sh
 agrep --lang=ar,fa 'كتاب' library/
 ```
 
-#### 3. High-Recall Skeleton Search (*Rasm*)
+#### Match the consonant skeleton (*rasm*)
 
-Search early manuscripts or dotless text where `ب`, `ت`, `ث`, `ن`, and `ي` share the same skeleton (`ٮ`):
+For dotless manuscripts, `--rasm` gives `ب`, `ت`, `ث`, `ن`, and `ي` the same key (`ٮ`):
 
 ```sh
 agrep --rasm 'مستشرق' manuscript.txt
 ```
 
-#### 4. Typo and OCR-Tolerant Search (*Fuzzy*)
+#### Tolerate typos and OCR errors
 
-Allow edit distance up to $N$ codepoints using bit-parallel Myers algorithms:
+Allow up to `N` inserted, deleted, or substituted codepoints:
 
 ```sh
 agrep --fuzzy=1 'خوارزمي' scanned_books.txt
 ```
 
-#### 5. Latin Keyboard Transliteration
+#### Type the query on a Latin keyboard
 
-Search Arabic text using Buckwalter or ArabTeX transliteration without switching keyboard layouts:
+Write the query in Buckwalter, ArabTeX, or ISO 233 transliteration:
 
 ```sh
 agrep --translit=buckwalter 'ktAb' corpus.txt
 ```
 
-#### 6. Structured Output for Tooling and Agents
+#### JSON output for scripts and agents
 
-Stream JSON Lines with exact line numbers and byte spans:
+One JSON object per line, with line numbers and byte spans:
 
 ```sh
 agrep --json 'الذكاء الاصطناعي' articles/
 ```
 
----
+## Pages
 
-## Documentation Guide
-
-Explore the sections of the documentation to master `agrep`:
-
-- [Command-Line Reference](CLI.md) — Comprehensive guide to flags, search modes, JSON schema, and updater options.
-- [Go Package & API Guide](PACKAGE.md) — Embedding agrep as a Go library: linguistic normalization, matchers, streaming scanner, and span mapping.
-- [Unicode Normalization](NORMALIZATION.md) — Normalization presets (`search`, `strict`, `loose`, `lucene`, `camel`), rule tables, and citations.
-- [Arabic-Script Languages](LANGUAGES.md) — Alphabet rules, ZWNJ handling, and cross-language folds for Persian, Urdu, Pashto, Sorani Kurdish, and Uyghur.
-- [Rasm & Fuzzy Matching](MATCHING.md) — Consonant skeletons, Levenshtein distance semantics, and Myers algorithm details.
-- [Encodings & Transliteration](INPUT.md) — Automatic codepage detection (CP1256, ISO-8859-6, UTF-16) and transliteration schemes.
-- [Terminal Color & BiDi](TERMINALS.md) — Directional isolates (RLI/PDI) and terminal compatibility.
-- [Performance Benchmarks](BENCHMARKS.md) — Throughput measurements and comparison against ripgrep and GNU grep.
-- [Normalization Playground](PLAYGROUND.md) — Interactive browser-based WebAssembly demo.
-- [Development Guide](DEVELOPMENT.md) — Compiling, fuzzing, running test suites, and AI agent integration.
-- [Distribution & Releases](DISTRIBUTION.md) — GoReleaser configuration, release verification, and package recipes.
+- [Command-Line Reference](CLI.md) — Flags, search modes, JSON output, and the updater.
+- [Go Package & API Guide](PACKAGE.md) — Using the `arabic`, `match`, and `scan` packages from Go.
+- [Unicode Normalization](NORMALIZATION.md) — Profiles (`search`, `strict`, `loose`, `lucene`, `camel`) and the codepoints each rule touches.
+- [Arabic-Script Languages](LANGUAGES.md) — Persian, Urdu, Pashto, Sorani Kurdish, and Uyghur letters, ZWNJ, and cross-language folds.
+- [Rasm & Fuzzy Matching](MATCHING.md) — Dotless skeletons and edit-distance matching.
+- [Encodings & Transliteration](INPUT.md) — Legacy encodings (CP1256, ISO-8859-6, UTF-16), transliterated queries, and HTML/EPUB input.
+- [Terminal Color & BiDi](TERMINALS.md) — How colored Arabic matches stay in place in a terminal.
+- [Performance Benchmarks](BENCHMARKS.md) — Timings against GNU grep and ripgrep, and how to reproduce them.
+- [Normalization Playground](PLAYGROUND.md) — Try normalization in the browser.
+- [Development Guide](DEVELOPMENT.md) — Building, testing, fuzzing, and the agent skill.
+- [Distribution & Releases](DISTRIBUTION.md) — Release checklist and package recipes.

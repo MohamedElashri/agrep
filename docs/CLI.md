@@ -1,6 +1,6 @@
 ---
 title: "Command-Line Reference"
-description: "Complete reference for agrep CLI flags, options, exit codes, and JSON Lines output format."
+description: "Every agrep flag, the exit codes, and the JSON Lines output format."
 category: "Getting Started"
 order: 2
 ---
@@ -97,7 +97,11 @@ Overrides apply on top of the selected profile. See the
 | `--update` | Self-update agrep in place to the latest release. |
 | `--update=TAG` | Update or switch agrep in place to a specific release tag (e.g. `v0.2.0`). |
 
-The updater securely checks and verifies the SHA-256 checksum against official release `checksums.txt` before applying the update. Executable replacement is atomic. If `GITHUB_TOKEN` or `GH_TOKEN` is present in the environment, it is sent with requests to avoid rate limits, with automatic fallback to release redirect resolution.
+The updater checks the downloaded archive against the release's
+`checksums.txt` (SHA-256) before replacing the executable, and the
+replacement is atomic. If `GITHUB_TOKEN` or `GH_TOKEN` is set, it is sent with
+GitHub API requests to avoid rate limits. If the API request fails, the
+updater finds the latest tag from the release page redirect.
 
 `--help` prints the built-in help; `--version` prints the build version. Exit
 status is `0` when something is selected, `1` when nothing is selected, and `2`

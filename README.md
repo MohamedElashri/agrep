@@ -7,7 +7,7 @@
 [![Playground](https://img.shields.io/badge/Playground-Live%20Demo-10b981?logo=webassembly&logoColor=white)](https://mohamedelashri.github.io/agrep/playground/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-`agrep` is an ultrafast, Unicode-aware search tool tailored for Arabic-script text. It matches across spelling variants, diacritics (*tashkil*), letter forms, consonant skeletons (*rasm*), and transliterated queries while preserving original source lines and exact byte offsets.
+`agrep` is grep for Arabic-script text. It matches across spelling variants, diacritics (*tashkil*), letter forms, consonant skeletons (*rasm*), and transliterated queries, and prints the original line with the byte offsets of each match.
 
 ```sh
 # Matches across diacritics, alef forms, and ta-marbuta:
@@ -23,37 +23,46 @@ With no path, `agrep` reads standard input. Pass `-` as a path argument to mix s
 
 ### Quick Install (macOS, Linux, BSD)
 
-Install the latest pre-compiled binary via the automated installer script:
+The install script downloads the latest release binary:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/MohamedElashri/agrep/main/scripts/install.sh | bash
 ```
 
-Custom installation directory (e.g., `~/.local/bin`):
+To install somewhere else, such as `~/.local/bin`:
 
 ```sh
-BINDIR=~/.local/bin curl -fsSL https://raw.githubusercontent.com/MohamedElashri/agrep/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/MohamedElashri/agrep/main/scripts/install.sh | BINDIR=~/.local/bin bash
+```
+
+To install a specific release:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/MohamedElashri/agrep/main/scripts/install.sh | VERSION=v0.1.1 bash
 ```
 
 ### Pre-compiled Binaries
 
-Download standalone archives for Linux, macOS, Windows, FreeBSD, OpenBSD, and NetBSD (`amd64`, `arm64`) from [GitHub Releases](https://github.com/MohamedElashri/agrep/releases/tag/v0.1.0), and verify hashes against `checksums.txt`.
+Download archives for Linux, macOS, Windows, FreeBSD, OpenBSD, and NetBSD (`amd64`, `arm64`) from [GitHub Releases](https://github.com/MohamedElashri/agrep/releases/latest), and verify hashes against `checksums.txt`.
+
+Windows archives (zip) are built but untested: CI runs only on Linux, and the install script does not support Windows. Download the zip and put `agrep.exe` on your `PATH`. Reports of what works and what doesn't are welcome.
 
 Using GitHub CLI:
 ```sh
-gh release download v0.1.0 -R MohamedElashri/agrep
+gh release download -R MohamedElashri/agrep --pattern '*_linux_amd64.tar.gz' --pattern checksums.txt
 ```
 
 Direct download (Linux amd64 example):
 ```sh
-curl -fsSL https://github.com/MohamedElashri/agrep/releases/download/v0.1.0/agrep_0.1.0_linux_amd64.tar.gz | tar -xz
+TAG=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/MohamedElashri/agrep/releases/latest | sed 's#.*/##')
+curl -fsSL "https://github.com/MohamedElashri/agrep/releases/download/$TAG/agrep_${TAG#v}_linux_amd64.tar.gz" | tar -xz
 sudo mv agrep /usr/local/bin/
 ```
 
 ### Go Toolchain
 
 ```sh
-go install github.com/MohamedElashri/agrep/cmd/agrep@v0.1.0
+go install github.com/MohamedElashri/agrep/cmd/agrep@latest
 ```
 
 ### Build from Source
@@ -63,11 +72,11 @@ git clone https://github.com/MohamedElashri/agrep.git
 cd agrep && go build -ldflags="-s -w" ./cmd/agrep
 ```
 
-HTML and EPUB extraction can be included by adding `-tags formats` during compilation. See [INPUT.md](docs/INPUT.md#optional-html-and-epub-extraction).
+Add `-tags formats` to include HTML and EPUB extraction. See [INPUT.md](docs/INPUT.md#optional-html-and-epub-extraction).
 
 ### Updating
 
-Check for new releases or self-update in place:
+Check for a new release or update in place:
 
 ```sh
 agrep --check-update    # check if a newer release is available
@@ -99,11 +108,11 @@ The matching line is always printed with its original source spelling. Emitted J
 | Languages & Encodings | [LANGUAGES.md](docs/LANGUAGES.md), [INPUT.md](docs/INPUT.md) | Persian, Urdu, Kurdish orthographies and transliteration |
 | Web Playground | [PLAYGROUND.md](docs/PLAYGROUND.md) | [Live interactive demo](https://mohamedelashri.github.io/agrep/playground/) running in WebAssembly |
 | Benchmarks | [BENCHMARKS.md](docs/BENCHMARKS.md) | Performance metrics and comparison suites |
-| Agent Integration | [Agent Skill](.agents/skills/agrep-search/SKILL.md) | Ready-to-use search skill for Codex and Claude Code |
+| Agent Integration | [Agent Skill](.agents/skills/agrep-search/SKILL.md) | Search skill for Codex and Claude Code |
 
 ## Go packages
 
-`agrep` is also available as modular Go packages: `arabic` for Unicode normalization, `match` for literal, regex, and fuzzy engines, and `scan` for line-by-line streaming.
+The CLI is built on three Go packages: `arabic` for normalization, `match` for literal, regex, and fuzzy matchers, and `scan` for streaming line search. See the [Go package guide](docs/PACKAGE.md).
 
 ```go
 import "github.com/MohamedElashri/agrep/arabic"

@@ -2,14 +2,8 @@
 set -eu
 
 REPO="MohamedElashri/agrep"
-DEFAULT_VERSION="v0.1.0"
-VERSION="${VERSION:-$DEFAULT_VERSION}"
-
-# Normalize version tag
-case "$VERSION" in
-  v*) TAG="$VERSION" ; VER="${VERSION#v}" ;;
-  *) TAG="v$VERSION" ; VER="$VERSION" ;;
-esac
+# Set VERSION (e.g. v0.1.1) to install a specific release; default is the latest.
+VERSION="${VERSION:-latest}"
 
 # Detect OS
 OS_RAW="$(uname -s)"
@@ -42,23 +36,6 @@ if [ "$OS" = "dragonfly" ] && [ "$ARCH" = "arm64" ]; then
   exit 1
 fi
 
-TARBALL="agrep_${VER}_${OS}_${ARCH}.tar.gz"
-DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${TAG}/${TARBALL}"
-CHECKSUMS_URL="https://github.com/${REPO}/releases/download/${TAG}/checksums.txt"
-
-# Select install destination directory
-if [ -n "${BINDIR:-}" ]; then
-  TARGET_DIR="$BINDIR"
-elif [ -w "/usr/local/bin" ]; then
-  TARGET_DIR="/usr/local/bin"
-elif [ -d "$HOME/.local/bin" ] || mkdir -p "$HOME/.local/bin" 2>/dev/null; then
-  TARGET_DIR="$HOME/.local/bin"
-else
-  TARGET_DIR="/usr/local/bin"
-fi
-
-printf "Installing agrep %s (%s/%s)...\n" "$TAG" "$OS" "$ARCH"
-
 # Create a temporary workspace
 TMP_DIR="$(mktemp -d 2>/dev/null || mktemp -d -t 'agrep-install')"
 cleanup() {
@@ -80,6 +57,55 @@ download_file() {
     exit 1
   fi
 }
+
+# Resolve the latest release tag. The API can be rate limited, so fall back to
+# the tag in the /releases/latest redirect.
+resolve_latest_tag() {
+  if download_file "https://api.github.com/repos/${REPO}/releases/latest" "$TMP_DIR/latest.json" 2>/dev/null; then
+    tag="$(sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$TMP_DIR/latest.json" | head -n 1)"
+    if [ -n "$tag" ]; then
+      echo "$tag"
+      return 0
+    fi
+  fi
+  if [ -z "${CUSTOM_DOWNLOADER:-}" ] && command -v curl >/dev/null 2>&1; then
+    url="$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/${REPO}/releases/latest" 2>/dev/null || true)"
+    case "$url" in
+      */releases/tag/*) echo "${url##*/}" ; return 0 ;;
+    esac
+  fi
+  return 1
+}
+
+if [ "$VERSION" = "latest" ]; then
+  if ! VERSION="$(resolve_latest_tag)"; then
+    echo "Error: could not determine the latest release. Set VERSION, e.g. VERSION=v0.1.1." >&2
+    exit 1
+  fi
+fi
+
+# Normalize version tag
+case "$VERSION" in
+  v*) TAG="$VERSION" ; VER="${VERSION#v}" ;;
+  *) TAG="v$VERSION" ; VER="$VERSION" ;;
+esac
+
+TARBALL="agrep_${VER}_${OS}_${ARCH}.tar.gz"
+DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${TAG}/${TARBALL}"
+CHECKSUMS_URL="https://github.com/${REPO}/releases/download/${TAG}/checksums.txt"
+
+# Select install destination directory
+if [ -n "${BINDIR:-}" ]; then
+  TARGET_DIR="$BINDIR"
+elif [ -w "/usr/local/bin" ]; then
+  TARGET_DIR="/usr/local/bin"
+elif [ -d "$HOME/.local/bin" ] || mkdir -p "$HOME/.local/bin" 2>/dev/null; then
+  TARGET_DIR="$HOME/.local/bin"
+else
+  TARGET_DIR="/usr/local/bin"
+fi
+
+printf "Installing agrep %s (%s/%s)...\n" "$TAG" "$OS" "$ARCH"
 
 # Download release archive and checksum file
 download_file "$DOWNLOAD_URL" "$TMP_DIR/$TARBALL"

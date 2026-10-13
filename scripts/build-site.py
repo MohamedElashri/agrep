@@ -747,7 +747,7 @@ def render_head(
   <meta property="og:image" content="{SITE_URL}/og-image.svg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="agrep - Ultrafast Arabic Search Tool">
+  <meta property="og:image:alt" content="agrep: search for Arabic-script text">
   <meta property="og:locale" content="en_US">
 
   <!-- Twitter Card -->
@@ -816,7 +816,7 @@ def render_site_footer(relative_prefix: str = "") -> str:
           <span class="brand-mark" aria-hidden="true">ا</span>
           <span class="brand-text">agrep<span class="brand-dot">.</span></span>
         </a>
-        <p class="footer-tagline">Ultrafast Unicode-aware search tool tailored for Arabic-script text and multi-lingual archives.</p>
+        <p class="footer-tagline">Search tool and Go library for Arabic-script text.</p>
         <p class="footer-copyright">Released under the MIT License.<br>© Mohamed Elashri and agrep contributors.</p>
       </div>
 
@@ -1049,15 +1049,15 @@ def render_doc_page(
 
 
 def render_landing_page() -> str:
-    """Render high-impact agrep Landing Page with highlighted code and benchmark metrics."""
+    """Render the landing page with highlighted code and benchmark metrics."""
     json_ld = {
         "@context": "https://schema.org",
         "@graph": [
             {
                 "@type": "SoftwareApplication",
                 "name": "agrep",
-                "headline": "Ultrafast Unicode-Aware Search for Arabic-Script Text",
-                "description": "agrep is an ultrafast, Unicode-aware search tool and Go library tailored for Arabic, Persian, Urdu, Pashto, Sorani Kurdish, and Uyghur text.",
+                "headline": "Search for Arabic-Script Text",
+                "description": "agrep is a command-line search tool and Go library for Arabic, Persian, Urdu, Pashto, Sorani Kurdish, and Uyghur text.",
                 "applicationCategory": "DeveloperApplication",
                 "applicationSubCategory": "Search CLI",
                 "operatingSystem": "Linux, macOS, Windows, FreeBSD, OpenBSD, NetBSD",
@@ -1086,8 +1086,8 @@ def render_landing_page() -> str:
     }
 
     head_markup = render_head(
-        title="agrep · Ultrafast Unicode-Aware Search for Arabic-Script Text",
-        description="agrep is a high-performance CLI search tool and Go library built specifically for Arabic, Persian, Urdu, Pashto, Kurdish, and Uyghur text. Matches across diacritics, ligatures, and consonant skeletons.",
+        title="agrep · Search for Arabic-Script Text",
+        description="agrep is a command-line search tool and Go library for Arabic, Persian, Urdu, Pashto, Kurdish, and Uyghur text. It matches across diacritics, ligatures, and consonant skeletons.",
         keywords=DEFAULT_KEYWORDS,
         page_url=f"{SITE_URL}/",
         relative_prefix="",
@@ -1117,7 +1117,7 @@ func main() {
     key2 := p.Normalize("مدرسه")
     fmt.Println(key1 == key2) // true
 
-    // 2. Myers fuzzy search with exact source span mapping
+    // 2. Fuzzy search, with the match mapped back to the original text
     m, _ := match.NewFuzzy([]string{"كتاب"}, p, false, 1)
     text := "هذا كتلب جديد"
     normKey, idx := p.NormalizeMapped(text)
@@ -1137,19 +1137,19 @@ func main() {
   <!-- Hero Section -->
   <section class="hero-section">
     <div class="hero-container">
-      <p class="hero-kicker">Unicode-aware search tool</p>
+      <p class="hero-kicker">Command-line tool and Go library</p>
 
       <h1 class="hero-title">
-        Ultrafast, Unicode-aware search for Arabic-script text.
+        Search Arabic-script text across diacritics, spelling variants, and ligatures.
       </h1>
 
       <p class="hero-subtitle">
-        Standard tools like <code>grep</code> and <code>ripgrep</code> miss matches due to vocalization diacritics, presentation-form ligatures, letter variants, and diverse orthographies. <strong>agrep</strong> eliminates search blind spots with zero-allocation streaming normalization, dotless rasm reconstruction, and exact source byte mapping.
+        <code>grep</code> and <code>ripgrep</code> compare bytes, so a search for <span dir="rtl">مدرسه</span> misses <span dir="rtl">مَدْرَسَة</span>, text copied from a PDF, and the Persian spelling. <strong>agrep</strong> normalizes the query and each line before comparing them, prints the original line, and reports where the match is in it.
       </p>
 
       <div class="hero-actions">
-        <a href="docs/index.html" class="btn btn-primary">Read Documentation</a>
-        <a href="playground/index.html" class="btn btn-secondary">Interactive Playground</a>
+        <a href="docs/index.html" class="btn btn-primary">Documentation</a>
+        <a href="playground/index.html" class="btn btn-secondary">Playground</a>
       </div>
 
       <!-- Quick Install Box -->
@@ -1163,7 +1163,7 @@ func main() {
           </button>
         </div>
         <div class="install-meta">
-          <span>Or via Go: <button class="alt-install-btn" data-cmd="go install github.com/MohamedElashri/agrep/cmd/agrep@v0.1.1"><code>go install ...@v0.1.1</code></button></span>
+          <span>Or via Go: <button class="alt-install-btn" data-cmd="go install github.com/MohamedElashri/agrep/cmd/agrep@latest"><code>go install ...@latest</code></button></span>
           <span class="install-meta-sep">·</span>
           <a href="https://github.com/MohamedElashri/agrep/releases" target="_blank" rel="noopener noreferrer">Release binaries</a>
         </div>
@@ -1175,9 +1175,9 @@ func main() {
   <section class="demo-section">
     <div class="section-container">
       <div class="section-header">
-        <p class="section-eyebrow">Interactive Comparison</p>
-        <h2>Why generic search fails on Arabic</h2>
-        <p class="section-desc">Arabic orthography requires normalization before matching. Standard grep tests raw bytes; agrep normalizes in memory while pointing back to the exact source bytes.</p>
+        <p class="section-eyebrow">Comparison</p>
+        <h2>The same query in grep and agrep</h2>
+        <p class="section-desc">grep looks for the query bytes. agrep compares normalized text and highlights the match in the original line.</p>
       </div>
 
       <div class="demo-widget">
@@ -1194,8 +1194,8 @@ func main() {
             <div class="demo-box-label">Standard grep / ripgrep</div>
             <div class="demo-box demo-box-fail" id="grep-box">
               <div class="demo-cli-cmd">{highlight_shell("$ grep 'مدرسه' corpus.txt")}</div>
-              <div class="demo-result-text" dir="auto">(No match found — diacritics block exact byte search)</div>
-              <div class="demo-status-pill pill-fail">0 matches (missed text)</div>
+              <div class="demo-result-text" dir="auto">(no match: the text has vowel marks)</div>
+              <div class="demo-status-pill pill-fail">0 matches</div>
             </div>
           </div>
 
@@ -1204,13 +1204,13 @@ func main() {
             <div class="demo-box demo-box-success" id="agrep-box">
               <div class="demo-cli-cmd">{highlight_shell("$ agrep 'مدرسه' corpus.txt")}</div>
               <div class="demo-result-text" dir="auto" id="agrep-match-text">هذه <mark>مَدْرَسَةٌ</mark> عريقة في المدينة.</div>
-              <div class="demo-status-pill pill-success">Match found · exact byte span [4:24]</div>
+              <div class="demo-status-pill pill-success" id="agrep-status">1 match · bytes [7:27]</div>
             </div>
           </div>
         </div>
 
         <div class="demo-explainer" id="demo-explanation">
-          <strong>How it works:</strong> The query <code>مدرسه</code> automatically folds ta-marbuta (<code>ة</code> → <code>ه</code>) and strips vocalization diacritics (<em>fathah, dammah, tanwin</em>) during normalized key comparison, while preserving original source text and exact UTF-8 byte spans.
+          The default profile folds <code>ة</code> to <code>ه</code> and removes the vowel marks (<em>fathah</em>, <em>dammah</em>, <em>tanwin</em>) before comparing. The highlighted word is the original text, vowels included.
         </div>
       </div>
     </div>
@@ -1220,52 +1220,52 @@ func main() {
   <section class="features-section">
     <div class="section-container">
       <div class="section-header">
-        <p class="section-eyebrow">Technical Architecture</p>
-        <h2>Designed for linguistic precision and throughput</h2>
-        <p class="section-desc">agrep combines the linguistic correctness of specialized NLP packages with the streaming speed of modern system utilities.</p>
+        <p class="section-eyebrow">Features</p>
+        <h2>What agrep handles</h2>
+        <p class="section-desc">Each feature below has a CLI flag and a matching option in the Go packages.</p>
       </div>
 
       <div class="features-grid">
         <div class="feature-card">
           <span class="feature-num">01 / NORMALIZATION</span>
-          <h3>Streaming Unicode Normalization</h3>
-          <p>Zero-allocation Unicode NFD pipeline supporting 5 standard presets (<code>search</code>, <code>strict</code>, <code>loose</code>, <code>lucene</code>, <code>camel</code>) and granular flags to keep or fold specific marks.</p>
-          <a href="docs/normalization.html" class="feature-link">Read Normalization Docs →</a>
+          <h3>Normalization profiles</h3>
+          <p>Five profiles built on Unicode NFD (<code>search</code>, <code>strict</code>, <code>loose</code>, <code>lucene</code>, <code>camel</code>), plus flags to keep or fold individual kinds of marks and letters.</p>
+          <a href="docs/normalization.html" class="feature-link">Normalization →</a>
         </div>
 
         <div class="feature-card">
           <span class="feature-num">02 / LANGUAGES</span>
-          <h3>Six Arabic-Script Languages</h3>
-          <p>First-class support for Persian (Farsi), Urdu, Pashto, Sorani Kurdish, and Uyghur. Retains distinct language alphabets or enables shared letter search across Arabic and Persian.</p>
-          <a href="docs/languages.html" class="feature-link">Read Language Support →</a>
+          <h3>Six Arabic-script languages</h3>
+          <p>Arabic, Persian, Urdu, Pashto, Sorani Kurdish, and Uyghur. One language keeps its own letters; Arabic plus another language also folds shared letters such as <code>ک</code> and <code>ك</code>.</p>
+          <a href="docs/languages.html" class="feature-link">Languages →</a>
         </div>
 
         <div class="feature-card">
           <span class="feature-num">03 / MANUSCRIPTS</span>
-          <h3>Dotless Rasm & Myers Fuzzy</h3>
-          <p>Search unpointed historical manuscripts where <code>ب ت ث ن ي</code> share the dotless skeleton <code>ٮ</code>. Bit-parallel Myers algorithm handles typos, dialect variance, and OCR errors.</p>
-          <a href="docs/matching.html" class="feature-link">Read Matching Docs →</a>
+          <h3>Rasm and fuzzy matching</h3>
+          <p>Search unpointed manuscripts, where <code>ب ت ث ن ي</code> share the skeleton <code>ٮ</code>. <code>--fuzzy</code> allows a set number of edits for typos and OCR errors.</p>
+          <a href="docs/matching.html" class="feature-link">Matching →</a>
         </div>
 
         <div class="feature-card">
           <span class="feature-num">04 / ACCURACY</span>
-          <h3>Exact Source-Byte Spans</h3>
-          <p>Matches on normalized keys, but maps every span back to original text UTF-8 byte offsets. Even expanded presentation forms like <code>ﻻ</code> map back to the single source character.</p>
-          <a href="docs/cli.html" class="feature-link">Explore JSON Output →</a>
+          <h3>Offsets in the original text</h3>
+          <p>Matching runs on normalized text, but every span is reported as byte offsets in the original line. A match inside the ligature <code>ﻻ</code> covers the whole ligature.</p>
+          <a href="docs/cli.html" class="feature-link">JSON output →</a>
         </div>
 
         <div class="feature-card">
           <span class="feature-num">05 / ENCODINGS</span>
-          <h3>Legacy Encodings & Transliteration</h3>
-          <p>Automatic detection for CP1256, ISO-8859-6, and UTF-16. Search Arabic corpora from a Latin keyboard using standard Buckwalter, ArabTeX, or ISO-233 transliteration schemes.</p>
-          <a href="docs/input.html" class="feature-link">Read Encodings Guide →</a>
+          <h3>Legacy encodings and transliteration</h3>
+          <p>Reads CP1256, ISO-8859-6, and UTF-16, and can detect which one a file uses. Queries can be typed in Buckwalter, ArabTeX, or ISO 233 transliteration.</p>
+          <a href="docs/input.html" class="feature-link">Encodings →</a>
         </div>
 
         <div class="feature-card">
           <span class="feature-num">06 / EMBEDDABLE</span>
-          <h3>Modular Go Packages</h3>
-          <p>Use agrep as a standalone CLI or import modular Go packages (<code>arabic</code>, <code>match</code>, <code>scan</code>) directly into your Go services, data pipelines, and search indexes.</p>
-          <a href="docs/package.html" class="feature-link">Explore Go Package Guide →</a>
+          <h3>Go packages</h3>
+          <p>The CLI is built on three importable packages: <code>arabic</code> for normalization, <code>match</code> for matchers, and <code>scan</code> for streaming line search.</p>
+          <a href="docs/package.html" class="feature-link">Go packages →</a>
         </div>
       </div>
     </div>
@@ -1276,37 +1276,37 @@ func main() {
     <div class="section-container">
       <div class="benchmark-card">
         <div class="benchmark-content">
-          <p class="section-eyebrow">Throughput & Benchmarks</p>
-          <h2>Zero-allocation hot paths and streaming I/O</h2>
+          <p class="section-eyebrow">Benchmarks</p>
+          <h2>Performance</h2>
           <p>
-            agrep processes multi-gigabyte corpora using zero-allocation streaming normalization and parallel directory traversal. It outperforms generic tools on Arabic while performing full Unicode decomposition.
+            agrep decodes and normalizes every line it reads, so it does more work than a byte search. When grep and ripgrep select the same lines, they are faster. These numbers come from 16 MiB fixtures, median of five warm-cache runs on an AMD Ryzen 7 7735H.
           </p>
 
           <div class="benchmark-metrics">
             <div class="benchmark-metric">
-              <div class="metric-val">4.3×</div>
-              <div class="metric-lbl">Faster than ripgrep</div>
-              <p class="metric-desc">381 ms vs 1,643 ms on diacritic-insensitive search across 4.8 GiB OpenITI.</p>
+              <div class="metric-val">390,168</div>
+              <div class="metric-lbl">Lines grep misses</div>
+              <p class="metric-desc">Vowel-insensitive search for <span dir="rtl">قال</span>. grep and ripgrep find none of these lines.</p>
             </div>
             <div class="benchmark-metric">
-              <div class="metric-val">0 B/op</div>
-              <div class="metric-lbl">Zero Allocations</div>
-              <p class="metric-desc">Streaming NFD normalization hot path achieves 0 allocs/op in Go benchmarks.</p>
+              <div class="metric-val">296 MiB/s</div>
+              <div class="metric-lbl">Line count</div>
+              <p class="metric-desc">Counting matching lines with <code>-c</code> on the repeated fixture, including process startup.</p>
             </div>
             <div class="benchmark-metric">
               <div class="metric-val">19 MiB/s</div>
-              <div class="metric-lbl">Throughput</div>
-              <p class="metric-desc">Vocalization diacritics stripping across 390,168 matched corpus lines.</p>
+              <div class="metric-lbl">Vowel-insensitive search</div>
+              <p class="metric-desc">The <span dir="rtl">قال</span> search above, normalizing every line.</p>
             </div>
             <div class="benchmark-metric">
-              <div class="metric-val">100%</div>
-              <div class="metric-lbl">Exact Byte Spans</div>
-              <p class="metric-desc">Every match maps back to exact UTF-8 source offsets in terminal and JSON.</p>
+              <div class="metric-val">2 allocs/op</div>
+              <div class="metric-lbl">Plain scan</div>
+              <p class="metric-desc">Package benchmark over about 10 MiB, without span mapping.</p>
             </div>
           </div>
 
           <div class="benchmark-cta">
-            <a href="docs/benchmarks.html" class="benchmark-link">View complete benchmark methodology and dataset results →</a>
+            <a href="docs/benchmarks.html" class="benchmark-link">Benchmark setup and full results →</a>
           </div>
         </div>
       </div>
@@ -1317,9 +1317,9 @@ func main() {
   <section class="code-section">
     <div class="section-container">
       <div class="section-header">
-        <p class="section-eyebrow">Embeddable Library</p>
-        <h2>Import into your Go application</h2>
-        <p class="section-desc">Integrate Unicode-aware Arabic normalization and matching directly into your Go services and pipelines.</p>
+        <p class="section-eyebrow">Go library</p>
+        <h2>Use it from Go</h2>
+        <p class="section-desc">The CLI's normalization and matching code is available as Go packages.</p>
       </div>
 
       <div class="code-showcase">
@@ -1333,7 +1333,7 @@ func main() {
       </div>
 
       <div class="code-showcase-cta" style="text-align: center; margin-top: 1.25rem;">
-        <a href="docs/package.html" class="feature-link">Read the complete Go Package Guide with examples &amp; API recipes →</a>
+        <a href="docs/package.html" class="feature-link">Go package guide →</a>
       </div>
     </div>
   </section>
@@ -1356,12 +1356,12 @@ def render_playground_page() -> str:
         "url": f"{SITE_URL}/playground/",
         "applicationCategory": "DeveloperApplication",
         "operatingSystem": "All (WebAssembly)",
-        "description": "Interactive WebAssembly browser playground for testing Arabic Unicode normalization rules and comparison keys in real-time.",
+        "description": "Browser playground that shows the comparison key agrep builds for Arabic-script text under each profile and language.",
     }
 
     head_markup = render_head(
         title="Normalization Playground · agrep",
-        description="Interactive browser playground for agrep. Test Unicode normalization profiles, Arabic presentation forms, and comparison keys in real-time via WebAssembly.",
+        description="Browser playground for agrep. See the comparison key for any text under each normalization profile and language. Runs locally via WebAssembly.",
         keywords="agrep, playground, webassembly, arabic normalization, unicode, live demo, search engine",
         page_url=f"{SITE_URL}/playground/",
         relative_prefix="../",
