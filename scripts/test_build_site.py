@@ -233,6 +233,27 @@ if (!out.includes('tok-cmd') || !out.includes('tok-flag')) {
             except FileNotFoundError:
                 pass
 
+    def test_docs_code_block_css_styling(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_dir = Path(tmpdir)
+            build_site_mod.build_site(REPO_ROOT, out_dir)
+
+            docs_css = out_dir / "docs" / "docs.css"
+            site_css = out_dir / "site.css"
+            self.assertTrue(docs_css.exists())
+            self.assertTrue(site_css.exists())
+
+            docs_content = docs_css.read_text(encoding="utf-8")
+            site_content = site_css.read_text(encoding="utf-8")
+
+            # Inline code styling must not apply to pre code blocks
+            self.assertIn(":not(pre) > code", docs_content)
+
+            # Code inside pre or .code-block must reset background and border
+            self.assertIn(".doc-body pre code", docs_content)
+            self.assertIn(".code-block code", docs_content)
+            self.assertIn(".code-block code", site_content)
+
 
 if __name__ == "__main__":
     unittest.main()
