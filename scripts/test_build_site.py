@@ -111,15 +111,15 @@ Here is the body.
             self.assertTrue(landing_file.exists())
             landing_content = landing_file.read_text(encoding="utf-8")
             self.assertIn("agrep", landing_content)
-            self.assertIn("Ultrafast, Unicode-aware search", landing_content)
+            self.assertIn("Search Arabic-script text across diacritics", landing_content)
             self.assertIn("docs/index.html", landing_content)
             self.assertIn("playground/index.html", landing_content)
             # Verify Go snippet syntax highlighting on landing page
             self.assertIn('class="tok-kw">package</span>', landing_content)
             self.assertIn('class="tok-fn">main</span>', landing_content)
             # Verify benchmark metrics cards on landing page
-            self.assertIn("Faster than ripgrep", landing_content)
-            self.assertIn("4.3×", landing_content)
+            self.assertIn("Lines grep misses", landing_content)
+            self.assertIn("390,168", landing_content)
 
             # Check Documentation Pages
             docs_dir = out_dir / "docs"

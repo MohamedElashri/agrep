@@ -34,42 +34,47 @@ document.addEventListener("DOMContentLoaded", () => {
     {
       name: "Tashkil (Vowels)",
       grepCmd: "$ grep 'مدرسه' corpus.txt",
-      grepResult: "(No match found — diacritics block exact byte search)",
+      grepResult: "(no match: the text has vowel marks)",
       agrepCmd: "$ agrep 'مدرسه' corpus.txt",
       agrepResult: 'هذه <mark>مَدْرَسَةٌ</mark> عريقة في المدينة.',
-      explanation: '<strong>How it works:</strong> The query <code>مدرسه</code> automatically folds ta-marbuta (<code>ة</code> → <code>ه</code>) and strips vocalization diacritics (<em>fathah, dammah, tanwin</em>) during normalized key comparison, while preserving original source text and exact UTF-8 byte spans.',
+      agrepStatus: "1 match · bytes [7:27]",
+      explanation: 'The default profile folds <code>ة</code> to <code>ه</code> and removes the vowel marks (<em>fathah</em>, <em>dammah</em>, <em>tanwin</em>) before comparing. The highlighted word is the original text, vowels included.',
     },
     {
       name: "PDF Ligatures",
       grepCmd: "$ grep 'كتاب' corpus.txt",
-      grepResult: "(No match found — PDF text uses U+FEFB presentation forms)",
+      grepResult: "(no match: the word is stored as presentation forms)",
       agrepCmd: "$ agrep 'كتاب' corpus.txt",
       agrepResult: 'ﻻ يوجد <mark>ﻛِﺘـﺎﺏ</mark> في الغرفة.',
-      explanation: '<strong>How it works:</strong> Text extracted from PDFs often contains Arabic presentation forms (e.g. <code>ﻻ</code> and contextual glyph <code>ﻛِﺘـﺎﺏ</code>). agrep decomposes 731 Unicode presentation-form codepoints and strips tatweel (<em>kashida</em>), mapping matches back to the original source line.',
+      agrepStatus: "1 match · bytes [13:29]",
+      explanation: 'Text copied from PDFs often stores contextual glyphs such as <code>ﻛ</code> (U+FEDB) and ligatures such as <code>ﻻ</code> instead of ordinary letters. agrep expands 731 presentation-form codepoints and removes tatweel (<em>kashida</em>) before comparing.',
     },
     {
       name: "Cross-Language (Persian)",
       grepCmd: "$ grep 'كتاب' corpus.txt",
-      grepResult: "(No match found — Persian uses Keheh ک U+06A9, not Arabic ك U+0643)",
+      grepResult: "(no match: Persian uses ک U+06A9, not ك U+0643)",
       agrepCmd: "$ agrep --lang=ar,fa 'كتاب' corpus.txt",
       agrepResult: 'این <mark>کتاب</mark> تازه و بسیار آموزنده است.',
-      explanation: '<strong>How it works:</strong> In multi-lingual archives, Persian and Urdu texts use distinct letter codepoints (<code>ک</code> and <code>ی</code>). With <code>--lang=ar,fa</code>, agrep enables shared-letter equivalence without conflating language-specific letters like ZWNJ or precomposed ezafe.',
+      agrepStatus: "1 match · bytes [7:15]",
+      explanation: 'Persian writes <code>ک</code> and <code>ی</code> where Arabic writes <code>ك</code> and <code>ي</code>. With <code>--lang=ar,fa</code>, agrep treats each pair as the same letter. Persian rules such as keeping ZWNJ still apply.',
     },
     {
       name: "Dotless Rasm (Manuscripts)",
       grepCmd: "$ grep 'مستشرق' corpus.txt",
-      grepResult: "(No match found — manuscript is written in early dotless rasm)",
+      grepResult: "(no match: the manuscript text has no dots)",
       agrepCmd: "$ agrep --rasm 'مستشرق' manuscript.txt",
       agrepResult: 'هذا <mark>مسٮسرٯ</mark> قديم من علماء القرن الماضي.',
-      explanation: '<strong>How it works:</strong> Early Arabic manuscripts omit dots (<em>i\'jam</em>). agrep\'s <code>--rasm</code> mode folds the 9 consonant classes (e.g. <code>ب ت ث ن ي</code> → <code>ٮ</code>, <code>ف ق</code> → <code>ٯ</code>) into unified skeletal keys for high-recall historical search.',
+      agrepStatus: "1 match · bytes [7:19]",
+      explanation: 'Early manuscripts omit the dots (<em>i\'jam</em>) that tell letters apart. <code>--rasm</code> folds nine groups of letters to one key each, for example <code>ب ت ث ن ي</code> → <code>ٮ</code> and <code>ف ق</code> → <code>ٯ</code>. Expect extra matches.',
     },
     {
       name: "Fuzzy Levenshtein",
       grepCmd: "$ grep 'خوارزمي' corpus.txt",
-      grepResult: "(No match found — original text contains OCR error or spelling variation)",
+      grepResult: "(no match: the text is missing ر)",
       agrepCmd: "$ agrep --fuzzy=1 'خوارزمي' scans.txt",
-      agrepResult: 'هو محمد بن موسى <mark>الخوارزمى</mark> عالم الرياضيات الشهير.',
-      explanation: '<strong>How it works:</strong> Using bit-parallel Myers algorithms, <code>--fuzzy=1</code> permits up to 1 codepoint insertion, deletion, or substitution over normalized text. Ideal for OCR scanning noise, transcription errors, or regional spelling variants.',
+      agrepResult: 'هو محمد بن موسى ال<mark>خوازمي</mark> عالم الرياضيات الشهير.',
+      agrepStatus: "1 match · bytes [32:44]",
+      explanation: '<code>--fuzzy=1</code> allows one inserted, deleted, or substituted codepoint, counted after normalization. Use it for OCR output and typos.',
     },
   ];
 
@@ -79,6 +84,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const agrepCmdEl = document.querySelector("#agrep-box .demo-cli-cmd");
   const agrepMatchEl = document.getElementById("agrep-match-text");
   const demoExplanationEl = document.getElementById("demo-explanation");
+  const agrepStatusEl = document.getElementById("agrep-status");
 
   function applyCmdHighlight(el, cmdText) {
     if (!el) return;
@@ -105,6 +111,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (grepResultEl) grepResultEl.textContent = sc.grepResult;
     applyCmdHighlight(agrepCmdEl, sc.agrepCmd);
     if (agrepMatchEl) agrepMatchEl.innerHTML = sc.agrepResult;
+    if (agrepStatusEl) agrepStatusEl.textContent = sc.agrepStatus;
     if (demoExplanationEl) demoExplanationEl.innerHTML = sc.explanation;
   }
 

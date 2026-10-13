@@ -42,7 +42,7 @@ export PATH="$HOME/.local/bin:$PATH"
 **Option C: Go Toolchain or Local Build**
 ```sh
 # If Go is installed:
-go install github.com/MohamedElashri/agrep/cmd/agrep@v0.1.0
+go install github.com/MohamedElashri/agrep/cmd/agrep@latest
 
 # Or inside the repository:
 go build -o ./agrep ./cmd/agrep

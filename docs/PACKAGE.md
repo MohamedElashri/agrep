@@ -1,19 +1,15 @@
 ---
 title: "Go Package & API Guide"
-description: "Comprehensive guide to using agrep as an embedded Go library: linguistic normalization, literal and fuzzy matchers, streaming scanner, and span mapping."
+description: "Using agrep from Go: normalization profiles, literal, fuzzy, and regex matchers, the streaming scanner, and span mapping."
 category: "Tools & Ecosystem"
 order: 2
 ---
 
-# Go Package & API Guide
+# Go packages
 
-While `agrep` is distributed as a high-performance command-line binary, its underlying engine is designed and implemented as a modular suite of decoupled Go packages. You can import these packages directly into your Go services, data pipelines, search engines, and linguistic analysis tools.
-
----
-
-## Package Overview & Architecture
-
-The `agrep` Go engine is partitioned into three core packages under the `github.com/MohamedElashri/agrep` module:
+The CLI is built on three importable packages in the
+`github.com/MohamedElashri/agrep` module. `scan` uses `match`, and `match`
+uses `arabic`:
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
@@ -31,31 +27,29 @@ The `agrep` Go engine is partitioned into three core packages under the `github.
 └──────────────┘        └──────────────┘        └──────────────┘
 ```
 
-| Package | Import Path | Primary Responsibility |
+| Package | Import path | What it does |
 | :--- | :--- | :--- |
-| `arabic` | `github.com/MohamedElashri/agrep/arabic` | Linguistic Unicode normalization, diacritic stripping, presentation expansion, multi-language orthographies, and exact source byte span mapping. |
-| `match` | `github.com/MohamedElashri/agrep/match` | Precompiled search engines implementing the `Matcher` interface: literal substrings, bit-parallel Myers fuzzy edit distance, and regular expressions. |
-| `scan` | `github.com/MohamedElashri/agrep/scan` | High-throughput streaming line scanner over arbitrary `io.Reader` streams with zero-allocation buffers, context windows, and span remapping. |
+| `arabic` | `github.com/MohamedElashri/agrep/arabic` | Builds comparison keys: strips diacritics, expands presentation forms, applies language rules, and maps key offsets back to the original text. |
+| `match` | `github.com/MohamedElashri/agrep/match` | The `Matcher` interface and its literal, Myers fuzzy, and regex implementations. |
+| `scan` | `github.com/MohamedElashri/agrep/scan` | Reads lines from any `io.Reader`, runs a `Matcher`, and reports matches, context lines, and original-text spans. |
 
 ### Installation
-
-Add `agrep` to your Go module dependencies:
 
 ```sh
 go get github.com/MohamedElashri/agrep
 ```
 
-Requirements: Go 1.22 or higher. The packages have no CGO requirements and compile across Linux, macOS, and Windows.
+The module requires the Go version in `go.mod` (currently 1.27.1). It is pure Go and does not use cgo.
 
----
+## Package `arabic`
 
-## 1. Package `arabic`: Linguistic Normalization
+`arabic` turns text into a comparison key. The key is lossy on purpose, so a
+query typed without vowels or with a different alef or ta-marbuta spelling
+still compares equal to the corpus text.
 
-The `arabic` package normalizes Arabic-script text into canonical comparison keys. Normalization is intentionally lossy: it allows queries typed without vowel marks, with alternative hamza placements, or from different regional keyboards to match text in digitized corpora.
+### Normalize
 
-### Quickstart
-
-For common search scenarios, `arabic.Normalize` applies `ProfileSearch` (agrep's default behavior):
+`arabic.Normalize` uses `ProfileSearch`, the CLI default:
 
 ```go
 package main
@@ -78,9 +72,10 @@ func main() {
 }
 ```
 
-### Normalization Profiles & Presets
+### Profiles
 
-Different applications require different degrees of linguistic tolerance. Package `arabic` provides five preconfigured profiles:
+There are five predefined profiles. [NORMALIZATION.md](NORMALIZATION.md) lists
+the exact codepoints each rule touches.
 
 | Profile | Tashkil | Tatweel | Hamza / Wasla | Hamza Seat | Ta-Marbuta | Alef Maksura | Digits | Rasm |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -90,22 +85,22 @@ Different applications require different degrees of linguistic tolerance. Packag
 | `ProfileLucene` | 8 Harakat | Stripped | Folded (no wasla)| Preserved | Folded | Folded | Preserved | Off |
 | `ProfileCAMeL` | 9 Marks | Preserved | Folded (with wasla)| Preserved | Folded | Folded | Preserved | Off |
 
-#### Using Built-in Profiles
+#### Predefined profiles
 
 ```go
-// Strict: preserves letter-level orthographic distinctions (e.g. ة vs ه, ى vs ي)
-strictKey := arabic.ProfileStrict.Normalize("مكتبة") // retains 'ة'
+// Strict keeps letter distinctions such as ة vs ه and ى vs ي.
+strictKey := arabic.ProfileStrict.Normalize("مكتبة") // "مكتبة"
 
-// Loose: folds digits (٠-٩ -> 0-9), punctuation, and consonant skeletons (rasm)
-looseKey := arabic.ProfileLoose.Normalize("عام ١٩٨٤، صـ ٤٢")
+// Loose also folds digits, punctuation, and consonant skeletons (rasm).
+looseKey := arabic.ProfileLoose.Normalize("عام ١٩٨٤، صـ ٤٢") // "عام 1984, ص 42"
 
-// Lucene: exact compatibility with Apache Lucene's ArabicNormalizer
+// Lucene matches Apache Lucene's ArabicNormalizer on Arabic text.
 luceneKey := arabic.ProfileLucene.Normalize(text)
 ```
 
-#### Custom Profile Construction
+#### Custom profiles
 
-You can build a tailored `Profile` struct with fine-grained control:
+Set the `Profile` fields directly and call `Validate` before use:
 
 ```go
 customProfile := arabic.Profile{
@@ -131,9 +126,10 @@ if err := customProfile.Validate(); err != nil {
 }
 ```
 
-### Multi-Language Orthographies
+### Languages
 
-By default, profiles assume Arabic orthography. When searching mixed corpora or non-Arabic languages, pass an `arabic.LanguageSet`:
+Every predefined profile uses Arabic only. For Persian, Urdu, or a mixed
+corpus, set `Languages`:
 
 ```go
 // Bitwise combinations of supported languages
@@ -157,12 +153,15 @@ k2 := profile.Normalize("كتاب") // Arabic
 fmt.Println(k1 == k2)           // true
 ```
 
-> [!NOTE]
-> When `LanguagePersian`, `LanguageKurdish`, or `LanguageUyghur` is selected, `profile.Languages.PreservesZWNJ()` returns `true`. The engine preserves Zero-Width Non-Joiners (ZWNJ, `U+200C`) where they represent morphological suffixes (such as Persian plural *ha* in `خانه‌ها`).
+With `LanguagePersian`, `LanguageKurdish`, or `LanguageUyghur` selected,
+`Languages.PreservesZWNJ()` returns `true` and ZWNJ (U+200C) stays in the key.
+In those languages ZWNJ separates suffixes, as in Persian `خانه‌ها`. See
+[LANGUAGES.md](LANGUAGES.md) for each language's rules.
 
-### Consonant Skeleton (*Rasm*)
+### Rasm
 
-For unpointed historical manuscripts or early Islamic texts, enable `Rasm = true`:
+Set `Rasm` to compare dotless consonant skeletons, for example in unpointed
+manuscripts:
 
 ```go
 rasmProfile := arabic.ProfileSearch
@@ -171,27 +170,27 @@ rasmProfile.Rasm = true
 // Folds ب, ت, ث, ن, ي to dotless skeleton ٮ
 // Folds ج, ح, خ to ح
 // Folds ف, ق to ٯ
-fmt.Println(rasmProfile.Normalize("نستعين") == rasmProfile.Normalize("ٮسٮعىں")) // true
+fmt.Println(rasmProfile.Normalize("بيت")) // "ٮٮٮ"
+fmt.Println(rasmProfile.Normalize("بيت") == rasmProfile.Normalize("نبت")) // true
 ```
 
-### Exact Span Mapping: `NormalizeMapped` & `MapSpan`
+### Mapping offsets back to the original text
 
-When text is normalized, characters are stripped (tashkil, tatweel) or expanded (presentation ligatures like `ﻻ` expand to `ل` + `ا`). As a result, **byte offsets in the normalized string do not match byte offsets in the original text**.
-
-To highlight or extract matches in the original document without altering formatting or vowels, use `NormalizeMapped` and `MapSpan`:
+Normalization removes characters (tashkil, tatweel) and expands others (`ﻻ`
+becomes `ل` + `ا`), so a byte offset in the key is not an offset in the
+original text. `NormalizeMapped` returns an index alongside the key, and
+`MapSpan` uses it to convert a key range into an original-text range:
 
 ```go
 text := "هذِهِ مَدْرَسَةٌ مُبَارَكَةٌ"
 
-// 1. Normalize and generate offset index
 normKey, idx := arabic.ProfileSearch.NormalizeMapped(text)
 // normKey == "هذه مدرسه مباركه"
 
-// 2. Locate substring in normalized key
-normStart := 5  // start of "مدرسه"
-normEnd := 10   // end of "مدرسه"
+// Byte offsets of "مدرسه" in the key.
+normStart := strings.Index(normKey, "مدرسه") // 7
+normEnd := normStart + len("مدرسه")           // 17
 
-// 3. Map back to exact slice in the original text
 origStart, origEnd := arabic.MapSpan(idx, normStart, normEnd)
 matchedSlice := text[origStart:origEnd]
 
@@ -199,25 +198,24 @@ fmt.Printf("Original slice: %q\n", matchedSlice)
 // Output: Original slice: "مَدْرَسَةٌ"
 ```
 
-#### Zero-Allocation Span Mapping in Loops
+#### Reusing the index buffer
 
-In high-throughput loops, avoid reallocating index slices with `NormalizeMappedInto`:
+In a loop, `NormalizeMappedInto` reuses the index slice instead of allocating
+a new one for every line:
 
 ```go
 var idxBuf []int32
 
 for _, line := range lines {
 	normKey, idx := profile.NormalizeMappedInto(line, idxBuf)
-	idxBuf = idx // retain allocated capacity for next line
+	idxBuf = idx // keep the capacity for the next line
 	// ... process spans ...
 }
 ```
 
----
+## Package `match`
 
-## 2. Package `match`: Search Matchers
-
-Package `match` defines the `Matcher` interface and provides three compiled search implementations:
+`match` defines the `Matcher` interface and three implementations:
 
 ```go
 type Matcher interface {
@@ -231,11 +229,13 @@ type Span struct {
 }
 ```
 
-A `Matcher` is compiled **once** with a target `Profile`, and then executed against normalized text. Matchers are safe for concurrent use across goroutines.
+Build a `Matcher` once with a `Profile`, then call `FindAll` on text
+normalized with that same profile. Matchers are safe for concurrent use.
 
-### Literal Matcher (`NewLiteral` & `NewLiterals`)
+### Literal (`NewLiteral`, `NewLiterals`)
 
-Searches for exact normalized substring occurrences. Employs SIMD acceleration and raw invariant anchor rejection to bypass normalization on non-matching lines:
+Finds the query key as a substring of the normalized text. `NewLiterals`
+takes several queries and an `ignoreCase` flag:
 
 ```go
 import "github.com/MohamedElashri/agrep/match"
@@ -248,7 +248,7 @@ if err != nil {
 	log.Fatal(err)
 }
 
-// Multi-query with case-folding
+// Several queries, no case folding
 queries := []string{"جامعة", "معهد", "كلية"}
 multiM, err := match.NewLiterals(queries, profile, false)
 
@@ -259,44 +259,49 @@ for _, span := range multiM.FindAll(haystack) {
 }
 ```
 
-### Myers Fuzzy Matcher (`NewFuzzy`)
+### Fuzzy (`NewFuzzy`)
 
-Finds occurrences within a specified Levenshtein edit distance ($k \ge 0$) using bit-parallel Myers algorithms. Distance is measured over **Unicode codepoints** (runes), not raw UTF-8 bytes:
+Finds matches within a Levenshtein distance using Myers' bit-vector
+algorithm. Distance counts codepoints, not UTF-8 bytes.
+[MATCHING.md](MATCHING.md) describes how overlapping candidates are chosen.
 
 ```go
-// Allow up to 1 codepoint edit (insertion, deletion, or substitution)
+// At most one inserted, deleted, or substituted codepoint
 fuzzyM, err := match.NewFuzzy([]string{"خوارزمي"}, arabic.ProfileSearch, false, 1)
 if err != nil {
 	log.Fatal(err)
 }
 
-// Typo: "خوارزمى" (with yeh) or "خوارزم" (missing final letter)
-input := arabic.ProfileSearch.Normalize("عالم الرياضيات الخوارزمي الشهير")
+// The text is missing ر.
+input := arabic.ProfileSearch.Normalize("عالم الرياضيات الخوازمي الشهير")
 spans := fuzzyM.FindAll(input)
 for _, span := range spans {
-	fmt.Printf("Fuzzy match: %q\n", input[span.Start:span.End])
+	fmt.Printf("Fuzzy match: %q\n", input[span.Start:span.End]) // "خوازمي"
 }
 ```
 
-### Regular Expression Matcher (`NewRegex`)
+### Regex (`NewRegex`)
 
-Evaluates regular expressions against normalized text. Expressions retain standard syntax (anchors, character classes, quantifiers):
+Runs Go `regexp` syntax over the normalized text. The pattern is not
+normalized, so write it in key form: under `ProfileSearch`, `ة` has already
+become `ه`. Go's `\b` and `\w` are ASCII-only and do not match Arabic letters.
 
 ```go
-patterns := []string{`\bمدر[سص]ة\b`, `كتاب\s+\w+`}
+patterns := []string{`مدر[سص]ه`}
 reM, err := match.NewRegex(patterns, arabic.ProfileSearch, false)
 if err != nil {
 	log.Fatal(err)
 }
 
-spans := reM.FindAll(profile.Normalize("مدرسة جديدة"))
+spans := reM.FindAll(arabic.ProfileSearch.Normalize("مدرسة جديدة")) // [{0 10}]
 ```
 
----
+## Package `scan`
 
-## 3. Package `scan`: Streaming Line Search
-
-The `scan` package provides `scan.Search`, a high-throughput line scanner that reads from any `io.Reader` without the 64 KiB line limit of Go's standard `bufio.Scanner`.
+`scan.Search` reads lines from an `io.Reader`, normalizes each line with the
+matcher's profile, and calls `onMatch` for every selected or context line.
+Unlike `bufio.Scanner`, it has no 64 KiB token limit. If `onMatch` returns an
+error, `Search` stops and returns that error.
 
 ```go
 func Search(
@@ -307,23 +312,23 @@ func Search(
 ) (found bool, err error)
 ```
 
-### Scanner Options
+### Options
 
 ```go
 type Options struct {
-	MaxLineBytes  uint64 // Max line length; 0 means unlimited
-	File          string // Path label copied to Match.File
-	InvertMatch   bool   // Report non-matching lines (grep -v)
+	MaxLineBytes  uint64 // Max line length after removing CR/LF; 0 means unlimited
+	File          string // Copied to Match.File
+	InvertMatch   bool   // Select non-matching lines (grep -v)
 	BeforeContext int    // Preceding context lines (grep -B)
-	AfterContext  int    // Trailing context lines (grep -A)
-	MapSpans      bool   // Automatically map Match.Spans back to raw text
-	WordRegexp    bool   // Enforce word boundaries on matches
-	OmitText      bool   // Leave Match.Text empty for fast line counting
-	ExistenceOnly bool   // Stop scanning after first match (grep -q)
+	AfterContext  int    // Following context lines (grep -A)
+	MapSpans      bool   // Fill Match.Spans with original-text offsets; allocates
+	WordRegexp    bool   // Keep only matches bounded by non-word runes
+	OmitText      bool   // Leave Match.Text empty; not allowed with context or MapSpans
+	ExistenceOnly bool   // Emit only the first selected line; still reads the rest of the input
 }
 ```
 
-### Scanner Match Record
+### Match
 
 ```go
 type Match struct {
@@ -332,11 +337,13 @@ type Match struct {
 	Text       string    `json:"text"`              // Original line without CR/LF
 	Context    bool      `json:"context,omitempty"` // True for context lines
 	GroupStart bool      `json:"-"`                 // Marks discontinuity between match groups
-	Spans      [][2]int  `json:"spans,omitempty"`  // Exact byte offsets in Text
+	Spans      []Span    `json:"spans,omitempty"`   // Byte ranges in Text
 }
+
+type Span [2]int // Half-open [start, end); serialized as [start,end]
 ```
 
-### Basic Streaming Search
+### Example
 
 ```go
 package main
@@ -382,13 +389,12 @@ func main() {
 }
 ```
 
----
+## Recipes
 
-## 4. Practical Code Recipes
+### Search documents held in memory
 
-### Recipe 1: In-Memory Search Index for Arabic Documents
-
-Index a list of documents in memory and perform ultrafast searches:
+Normalize each document once when it is added, then run matchers against the
+stored keys:
 
 ```go
 package main
@@ -458,9 +464,10 @@ func main() {
 }
 ```
 
-### Recipe 2: Highlight Matches with HTML `<mark>` Tags
+### Wrap matches in `<mark>`
 
-Safely highlight matched terms in the original voweled text:
+Highlight matches in the original voweled text. The example writes the text as
+is; escape it first if it comes from users.
 
 ```go
 package main
@@ -511,9 +518,9 @@ func main() {
 }
 ```
 
-### Recipe 3: Multi-Language Document Matching (Farsi & Arabic)
+### Persian and Arabic in one corpus
 
-Handle bilingual Persian/Arabic corpora where keyboard variations occur:
+A Persian query also matches a voweled copy of the word:
 
 ```go
 package main
@@ -537,7 +544,7 @@ func main() {
 
 	corpus := []string{
 		"دانشگاه تهران در ایران",     // Persian spelling
-		"دَانِشْگَاه في طهران",       // Arabicized vocalization
+		"دَانِشْگَاه في طهران",       // with vowel marks
 	}
 
 	for _, line := range corpus {
@@ -551,9 +558,10 @@ func main() {
 }
 ```
 
-### Recipe 4: Scanning Real Files with Context Lines
+### Search a file with context lines
 
-Stream a large text file from disk, printing matching lines with 2 preceding and 2 following context lines:
+Print each match with two lines before and after it, in grep's
+`file:line:text` format:
 
 ```go
 package main
@@ -602,11 +610,15 @@ func SearchFileWithContext(filePath string, query string) error {
 }
 ```
 
----
+## Performance notes
 
-## 5. Performance Best Practices
-
-1. **Precompile Matchers Once:** Creating a `match.Matcher` compiles the query, extracts invariant raw anchors, and prepares bit-masks. Create the matcher once and reuse it across millions of lines or concurrent goroutines.
-2. **Reuse Buffer Memory:** In tight loops, avoid allocations by reusing slices with `p.NormalizeMappedInto(s, buffer)`.
-3. **Use `OmitText = true` for Line Counting:** If you only need to count matches or check existence, set `opts.OmitText = true`. This activates the fast summary path, which checks blocks of lines against invariant raw byte filters without allocating string objects.
-4. **Early Exit with Context:** Return a non-nil error from the `onMatch` callback to immediately stop the scanner when your limit is reached.
+- Build a `Matcher` once and reuse it. Construction normalizes the queries,
+  derives raw-byte filters for literal queries, and builds fuzzy bit masks.
+- Reuse the index buffer with `NormalizeMappedInto` when mapping spans in a
+  loop.
+- Leave `MapSpans` off unless you need offsets. Mapping allocates.
+- To count lines or test for a match, set `OmitText`. With a literal matcher
+  and no `MaxLineBytes`, `InvertMatch`, `WordRegexp`, or context, `Search`
+  checks 256 KiB blocks for the matcher's raw-byte anchors and skips blocks
+  that contain none, without splitting them into lines.
+- To stop early, return an error from `onMatch`.

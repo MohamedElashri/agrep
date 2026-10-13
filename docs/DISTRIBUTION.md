@@ -8,10 +8,13 @@ order: 2
 # Distribution and release checklist
 
 The repository has a tag-triggered GoReleaser workflow and a CI snapshot build.
-Archives cover Linux, macOS, FreeBSD, OpenBSD, and NetBSD on amd64 and arm64,
-plus DragonFly BSD on amd64. Each archive contains the binary, README, and
-license; `checksums.txt` contains SHA-256 hashes. Use a `v0.x.y` tag while
-the public Go API is still under review.
+Archives cover Linux, macOS, Windows, FreeBSD, OpenBSD, and NetBSD on amd64
+and arm64, plus DragonFly BSD on amd64. Windows archives are zip files; the
+rest are tar.gz. Windows builds are cross-compiled and untested: CI runs on
+Linux only, and `scripts/install.sh` does not support Windows. Say so in the
+release notes until a Windows CI job exists. Each archive contains the
+binary, README, and license; `checksums.txt` contains SHA-256 hashes. Use a
+`v0.x.y` tag while the public Go API is still under review.
 
 For each release:
 
@@ -41,8 +44,12 @@ For each release:
    Publish `agrep.rb` to a Homebrew tap and `PKGBUILD` to the AUR after this
    verification. The generator writes files locally; it does not publish or
    create accounts.
-5. After a tag is live, document a pinned install command such as
-   `go install github.com/MohamedElashri/agrep/cmd/agrep@v0.1.0`.
+5. The install script, README, and site install the latest release, so no
+   version needs bumping. Check that the install script picks up the new tag:
+
+   ```sh
+   curl -fsSL https://raw.githubusercontent.com/MohamedElashri/agrep/main/scripts/install.sh | BINDIR="$(mktemp -d)" bash
+   ```
 
 The current GoReleaser configuration ships the dependency-light default CLI.
 HTML and EPUB extraction require a separate source build with `-tags formats`;
