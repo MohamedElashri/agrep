@@ -2,34 +2,7 @@
 "use strict";
 
 document.addEventListener("DOMContentLoaded", () => {
-  const installCmdEl = document.getElementById("install-command");
-
-  // 1. Alt install command button handler
-  document.querySelectorAll(".alt-install-btn").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const cmd = btn.getAttribute("data-cmd");
-      if (!cmd) return;
-      if (installCmdEl) {
-        // Highlight the updated install command
-        if (window.agrepHighlight && typeof window.agrepHighlight.highlightShell === "function") {
-          installCmdEl.innerHTML = window.agrepHighlight.highlightShell(cmd);
-        } else {
-          installCmdEl.textContent = cmd;
-        }
-      }
-      try {
-        await navigator.clipboard.writeText(cmd);
-        btn.classList.add("copied");
-        setTimeout(() => {
-          btn.classList.remove("copied");
-        }, 2000);
-      } catch (e) {
-        console.error("Clipboard error:", e);
-      }
-    });
-  });
-
-  // 2. Interactive Comparison Demo Scenarios
+  // grep vs agrep example scenarios
   const scenarios = [
     {
       name: "Tashkil (Vowels)",
@@ -79,9 +52,9 @@ document.addEventListener("DOMContentLoaded", () => {
   ];
 
   const demoTabs = Array.from(document.querySelectorAll(".demo-tab"));
-  const grepCmdEl = document.querySelector("#grep-box .demo-cli-cmd");
-  const grepResultEl = document.querySelector("#grep-box .demo-result-text");
-  const agrepCmdEl = document.querySelector("#agrep-box .demo-cli-cmd");
+  const grepCmdEl = document.getElementById("grep-cmd");
+  const grepResultEl = document.getElementById("grep-result");
+  const agrepCmdEl = document.getElementById("agrep-cmd");
   const agrepMatchEl = document.getElementById("agrep-match-text");
   const demoExplanationEl = document.getElementById("demo-explanation");
   const agrepStatusEl = document.getElementById("agrep-status");

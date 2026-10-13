@@ -735,8 +735,8 @@ def render_head(
   <link rel="canonical" href="{page_url}">
   <link rel="icon" type="image/svg+xml" href="{relative_prefix}favicon.svg">
   <link rel="manifest" href="{relative_prefix}site.webmanifest">
-  <meta name="theme-color" content="#f5f3ec" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#121818" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#161616" media="(prefers-color-scheme: dark)">
 
   <!-- Open Graph / Social Sharing -->
   <meta property="og:site_name" content="agrep">
@@ -768,12 +768,9 @@ def render_head(
 def render_site_header(
     active_nav: str,
     relative_prefix: str = "",
-    badge: str = "",
     extra_left_html: str = "",
 ) -> str:
     """Render unified site navigation bar."""
-    badge_html = f'<span class="header-badge">{html.escape(badge)}</span>' if badge else ""
-
     home_active = ' class="active"' if active_nav == "home" else ""
     docs_active = ' class="active"' if active_nav == "docs" else ""
     play_active = ' class="active"' if active_nav == "playground" else ""
@@ -783,11 +780,7 @@ def render_site_header(
     <div class="header-inner">
       <div class="header-left">
         {extra_left_html}
-        <a href="{relative_prefix}index.html" class="brand">
-          <span class="brand-mark" aria-hidden="true">ا</span>
-          <span class="brand-text">agrep<span class="brand-dot">.</span></span>
-        </a>
-        {badge_html}
+        <a href="{relative_prefix}index.html" class="brand">agrep</a>
       </div>
       <nav class="header-nav">
         <a href="{relative_prefix}index.html"{home_active}>Home</a>
@@ -808,51 +801,18 @@ def render_site_header(
 
 
 def render_site_footer(relative_prefix: str = "") -> str:
-    """Render unified 4-column site footer."""
+    """Render the site footer."""
     return f"""<footer class="site-footer">
     <div class="footer-inner">
-      <div class="footer-brand-col">
-        <a href="{relative_prefix}index.html" class="brand">
-          <span class="brand-mark" aria-hidden="true">ا</span>
-          <span class="brand-text">agrep<span class="brand-dot">.</span></span>
-        </a>
-        <p class="footer-tagline">Search tool and Go library for Arabic-script text.</p>
-        <p class="footer-copyright">Released under the MIT License.<br>© Mohamed Elashri and agrep contributors.</p>
-      </div>
-
-      <div class="footer-links-col">
-        <h4>Documentation</h4>
-        <ul>
-          <li><a href="{relative_prefix}docs/index.html">Overview & Quickstart</a></li>
-          <li><a href="{relative_prefix}docs/cli.html">Command-Line Reference</a></li>
-          <li><a href="{relative_prefix}docs/package.html">Go Package & API Guide</a></li>
-          <li><a href="{relative_prefix}docs/normalization.html">Unicode Normalization</a></li>
-          <li><a href="{relative_prefix}docs/languages.html">Language Orthographies</a></li>
-          <li><a href="{relative_prefix}docs/matching.html">Rasm & Fuzzy Search</a></li>
-          <li><a href="{relative_prefix}docs/input.html">Encodings & Transliteration</a></li>
-        </ul>
-      </div>
-
-      <div class="footer-links-col">
-        <h4>Ecosystem</h4>
-        <ul>
-          <li><a href="{relative_prefix}playground/index.html">Normalization Playground</a></li>
-          <li><a href="{relative_prefix}docs/benchmarks.html">Performance Benchmarks</a></li>
-          <li><a href="{relative_prefix}docs/terminals.html">Terminal Color & BiDi</a></li>
-          <li><a href="{relative_prefix}docs/development.html">Agent Integration (Codex/Claude)</a></li>
-          <li><a href="{relative_prefix}docs/distribution.html">Release Checklist</a></li>
-        </ul>
-      </div>
-
-      <div class="footer-links-col">
-        <h4>Community</h4>
-        <ul>
-          <li><a href="https://github.com/MohamedElashri/agrep" target="_blank" rel="noopener noreferrer">GitHub Repository</a></li>
-          <li><a href="https://github.com/MohamedElashri/agrep/releases" target="_blank" rel="noopener noreferrer">Release Downloads</a></li>
-          <li><a href="https://pkg.go.dev/github.com/MohamedElashri/agrep" target="_blank" rel="noopener noreferrer">Go Reference (pkg.go.dev)</a></li>
-          <li><a href="https://github.com/MohamedElashri/agrep/issues" target="_blank" rel="noopener noreferrer">Issue Tracker</a></li>
-        </ul>
-      </div>
+      <p>agrep is released under the MIT License. © Mohamed Elashri and agrep contributors.</p>
+      <ul class="footer-links">
+        <li><a href="{relative_prefix}docs/index.html">Docs</a></li>
+        <li><a href="{relative_prefix}playground/index.html">Playground</a></li>
+        <li><a href="https://github.com/MohamedElashri/agrep" target="_blank" rel="noopener noreferrer">GitHub</a></li>
+        <li><a href="https://github.com/MohamedElashri/agrep/releases" target="_blank" rel="noopener noreferrer">Releases</a></li>
+        <li><a href="https://pkg.go.dev/github.com/MohamedElashri/agrep" target="_blank" rel="noopener noreferrer">pkg.go.dev</a></li>
+        <li><a href="https://github.com/MohamedElashri/agrep/issues" target="_blank" rel="noopener noreferrer">Issues</a></li>
+      </ul>
     </div>
   </footer>"""
 
@@ -963,7 +923,6 @@ def render_doc_page(
     site_header = render_site_header(
         active_nav="docs" if current_filename != "benchmarks.html" else "benchmarks",
         relative_prefix="../",
-        badge="docs",
         extra_left_html=sidebar_toggle_btn,
     )
 
@@ -1000,7 +959,6 @@ def render_doc_page(
 
         <article class="doc-content">
           <header class="doc-header">
-            <p class="doc-category">{html.escape(doc.get('category', 'Documentation'))}</p>
             <h1>{html.escape(doc['title'])}</h1>
             {f'<p class="doc-lead">{html.escape(doc["description"])}</p>' if doc.get('description') else ''}
           </header>
@@ -1100,6 +1058,7 @@ def render_landing_page() -> str:
 
     install_cmd = "curl -fsSL https://raw.githubusercontent.com/MohamedElashri/agrep/main/scripts/install.sh | bash"
     install_highlighted = highlight_shell(install_cmd)
+    go_install_highlighted = highlight_shell("go install github.com/MohamedElashri/agrep/cmd/agrep@latest")
 
     go_code_raw = """package main
 
@@ -1134,209 +1093,110 @@ func main() {
 <body class="landing-body">
   {site_header}
 
-  <!-- Hero Section -->
-  <section class="hero-section">
-    <div class="hero-container">
-      <p class="hero-kicker">Command-line tool and Go library</p>
+  <main class="landing">
+    <h1>Search Arabic-script text across diacritics, spelling variants, and ligatures.</h1>
 
-      <h1 class="hero-title">
-        Search Arabic-script text across diacritics, spelling variants, and ligatures.
-      </h1>
+    <p class="lead">
+      <code>grep</code> and <code>ripgrep</code> compare bytes, so a search for <span dir="rtl">مدرسه</span> misses <span dir="rtl">مَدْرَسَة</span>, text copied from a PDF, and the Persian spelling. <strong>agrep</strong> normalizes the query and each line before comparing them, prints the original line, and reports where the match is in it.
+    </p>
 
-      <p class="hero-subtitle">
-        <code>grep</code> and <code>ripgrep</code> compare bytes, so a search for <span dir="rtl">مدرسه</span> misses <span dir="rtl">مَدْرَسَة</span>, text copied from a PDF, and the Persian spelling. <strong>agrep</strong> normalizes the query and each line before comparing them, prints the original line, and reports where the match is in it.
-      </p>
+    <p class="lead">It is a command-line tool and a set of Go packages, for Arabic, Persian, Urdu, Pashto, Sorani Kurdish, and Uyghur.</p>
 
-      <div class="hero-actions">
-        <a href="docs/index.html" class="btn btn-primary">Documentation</a>
-        <a href="playground/index.html" class="btn btn-secondary">Playground</a>
-      </div>
-
-      <!-- Quick Install Box -->
-      <div class="hero-install">
-        <div class="install-bar">
-          <span class="install-prompt">$</span>
-          <code id="install-command">{install_highlighted}</code>
-          <button id="copy-install-btn" class="install-copy-btn" aria-label="Copy install command" title="Copy to clipboard" data-copy-target="install-command">
-            <svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-            <span class="copy-text">Copy</span>
-          </button>
-        </div>
-        <div class="install-meta">
-          <span>Or via Go: <button class="alt-install-btn" data-cmd="go install github.com/MohamedElashri/agrep/cmd/agrep@latest"><code>go install ...@latest</code></button></span>
-          <span class="install-meta-sep">·</span>
-          <a href="https://github.com/MohamedElashri/agrep/releases" target="_blank" rel="noopener noreferrer">Release binaries</a>
-        </div>
-      </div>
+    <div class="actions">
+      <a href="docs/index.html" class="btn btn-primary">Documentation</a>
+      <a href="playground/index.html" class="btn">Playground</a>
+      <a href="https://github.com/MohamedElashri/agrep" class="btn" target="_blank" rel="noopener noreferrer">Source</a>
     </div>
-  </section>
 
-  <!-- Interactive Demo Showcase -->
-  <section class="demo-section">
-    <div class="section-container">
-      <div class="section-header">
-        <p class="section-eyebrow">Comparison</p>
-        <h2>The same query in grep and agrep</h2>
-        <p class="section-desc">grep looks for the query bytes. agrep compares normalized text and highlights the match in the original line.</p>
+    <h2 id="install">Install</h2>
+    <div class="code-block">
+      <div class="code-bar">
+        <span class="code-lang">Shell</span>
+        <button class="copy-btn" type="button" aria-label="Copy install command" data-copy-target="install-command">Copy</button>
       </div>
-
-      <div class="demo-widget">
-        <div class="demo-nav" role="tablist" aria-label="Arabic search comparison scenarios">
-          <button class="demo-tab active" data-scenario="0" role="tab" aria-selected="true" tabindex="0">Tashkil (Vowels)</button>
-          <button class="demo-tab" data-scenario="1" role="tab" aria-selected="false" tabindex="-1">PDF Ligatures</button>
-          <button class="demo-tab" data-scenario="2" role="tab" aria-selected="false" tabindex="-1">Cross-Language (Persian)</button>
-          <button class="demo-tab" data-scenario="3" role="tab" aria-selected="false" tabindex="-1">Dotless Rasm (Manuscripts)</button>
-          <button class="demo-tab" data-scenario="4" role="tab" aria-selected="false" tabindex="-1">Fuzzy Levenshtein</button>
-        </div>
-
-        <div class="demo-display">
-          <div class="demo-col">
-            <div class="demo-box-label">Standard grep / ripgrep</div>
-            <div class="demo-box demo-box-fail" id="grep-box">
-              <div class="demo-cli-cmd">{highlight_shell("$ grep 'مدرسه' corpus.txt")}</div>
-              <div class="demo-result-text" dir="auto">(no match: the text has vowel marks)</div>
-              <div class="demo-status-pill pill-fail">0 matches</div>
-            </div>
-          </div>
-
-          <div class="demo-col">
-            <div class="demo-box-label">agrep (Arabic-script aware)</div>
-            <div class="demo-box demo-box-success" id="agrep-box">
-              <div class="demo-cli-cmd">{highlight_shell("$ agrep 'مدرسه' corpus.txt")}</div>
-              <div class="demo-result-text" dir="auto" id="agrep-match-text">هذه <mark>مَدْرَسَةٌ</mark> عريقة في المدينة.</div>
-              <div class="demo-status-pill pill-success" id="agrep-status">1 match · bytes [7:27]</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="demo-explainer" id="demo-explanation">
-          The default profile folds <code>ة</code> to <code>ه</code> and removes the vowel marks (<em>fathah</em>, <em>dammah</em>, <em>tanwin</em>) before comparing. The highlighted word is the original text, vowels included.
-        </div>
-      </div>
+      <pre><code id="install-command">{install_highlighted}</code></pre>
     </div>
-  </section>
-
-  <!-- Key Capabilities Grid -->
-  <section class="features-section">
-    <div class="section-container">
-      <div class="section-header">
-        <p class="section-eyebrow">Features</p>
-        <h2>What agrep handles</h2>
-        <p class="section-desc">Each feature below has a CLI flag and a matching option in the Go packages.</p>
+    <div class="code-block">
+      <div class="code-bar">
+        <span class="code-lang">Go</span>
+        <button class="copy-btn" type="button" aria-label="Copy go install command" data-copy-target="go-install-command">Copy</button>
       </div>
-
-      <div class="features-grid">
-        <div class="feature-card">
-          <span class="feature-num">01 / NORMALIZATION</span>
-          <h3>Normalization profiles</h3>
-          <p>Five profiles built on Unicode NFD (<code>search</code>, <code>strict</code>, <code>loose</code>, <code>lucene</code>, <code>camel</code>), plus flags to keep or fold individual kinds of marks and letters.</p>
-          <a href="docs/normalization.html" class="feature-link">Normalization →</a>
-        </div>
-
-        <div class="feature-card">
-          <span class="feature-num">02 / LANGUAGES</span>
-          <h3>Six Arabic-script languages</h3>
-          <p>Arabic, Persian, Urdu, Pashto, Sorani Kurdish, and Uyghur. One language keeps its own letters; Arabic plus another language also folds shared letters such as <code>ک</code> and <code>ك</code>.</p>
-          <a href="docs/languages.html" class="feature-link">Languages →</a>
-        </div>
-
-        <div class="feature-card">
-          <span class="feature-num">03 / MANUSCRIPTS</span>
-          <h3>Rasm and fuzzy matching</h3>
-          <p>Search unpointed manuscripts, where <code>ب ت ث ن ي</code> share the skeleton <code>ٮ</code>. <code>--fuzzy</code> allows a set number of edits for typos and OCR errors.</p>
-          <a href="docs/matching.html" class="feature-link">Matching →</a>
-        </div>
-
-        <div class="feature-card">
-          <span class="feature-num">04 / ACCURACY</span>
-          <h3>Offsets in the original text</h3>
-          <p>Matching runs on normalized text, but every span is reported as byte offsets in the original line. A match inside the ligature <code>ﻻ</code> covers the whole ligature.</p>
-          <a href="docs/cli.html" class="feature-link">JSON output →</a>
-        </div>
-
-        <div class="feature-card">
-          <span class="feature-num">05 / ENCODINGS</span>
-          <h3>Legacy encodings and transliteration</h3>
-          <p>Reads CP1256, ISO-8859-6, and UTF-16, and can detect which one a file uses. Queries can be typed in Buckwalter, ArabTeX, or ISO 233 transliteration.</p>
-          <a href="docs/input.html" class="feature-link">Encodings →</a>
-        </div>
-
-        <div class="feature-card">
-          <span class="feature-num">06 / EMBEDDABLE</span>
-          <h3>Go packages</h3>
-          <p>The CLI is built on three importable packages: <code>arabic</code> for normalization, <code>match</code> for matchers, and <code>scan</code> for streaming line search.</p>
-          <a href="docs/package.html" class="feature-link">Go packages →</a>
-        </div>
-      </div>
+      <pre><code id="go-install-command">{go_install_highlighted}</code></pre>
     </div>
-  </section>
+    <p class="note">Prebuilt binaries for Linux, macOS, Windows, and the BSDs are on the <a href="https://github.com/MohamedElashri/agrep/releases" target="_blank" rel="noopener noreferrer">releases page</a>.</p>
 
-  <!-- Performance Benchmark Section -->
-  <section class="benchmark-section">
-    <div class="section-container">
-      <div class="benchmark-card">
-        <div class="benchmark-content">
-          <p class="section-eyebrow">Benchmarks</p>
-          <h2>Performance</h2>
-          <p>
-            agrep decodes and normalizes every line it reads, so it does more work than a byte search. When grep and ripgrep select the same lines, they are faster. These numbers come from 16 MiB fixtures, median of five warm-cache runs on an AMD Ryzen 7 7735H.
-          </p>
-
-          <div class="benchmark-metrics">
-            <div class="benchmark-metric">
-              <div class="metric-val">390,168</div>
-              <div class="metric-lbl">Lines grep misses</div>
-              <p class="metric-desc">Vowel-insensitive search for <span dir="rtl">قال</span>. grep and ripgrep find none of these lines.</p>
-            </div>
-            <div class="benchmark-metric">
-              <div class="metric-val">296 MiB/s</div>
-              <div class="metric-lbl">Line count</div>
-              <p class="metric-desc">Counting matching lines with <code>-c</code> on the repeated fixture, including process startup.</p>
-            </div>
-            <div class="benchmark-metric">
-              <div class="metric-val">19 MiB/s</div>
-              <div class="metric-lbl">Vowel-insensitive search</div>
-              <p class="metric-desc">The <span dir="rtl">قال</span> search above, normalizing every line.</p>
-            </div>
-            <div class="benchmark-metric">
-              <div class="metric-val">2 allocs/op</div>
-              <div class="metric-lbl">Plain scan</div>
-              <p class="metric-desc">Package benchmark over about 10 MiB, without span mapping.</p>
-            </div>
-          </div>
-
-          <div class="benchmark-cta">
-            <a href="docs/benchmarks.html" class="benchmark-link">Benchmark setup and full results →</a>
-          </div>
-        </div>
-      </div>
+    <h2 id="example">grep and agrep on the same text</h2>
+    <div class="demo-nav" role="tablist" aria-label="Example">
+      <button class="demo-tab active" data-scenario="0" role="tab" aria-selected="true" tabindex="0">Vowel marks</button>
+      <button class="demo-tab" data-scenario="1" role="tab" aria-selected="false" tabindex="-1">PDF ligatures</button>
+      <button class="demo-tab" data-scenario="2" role="tab" aria-selected="false" tabindex="-1">Persian letters</button>
+      <button class="demo-tab" data-scenario="3" role="tab" aria-selected="false" tabindex="-1">Dotless rasm</button>
+      <button class="demo-tab" data-scenario="4" role="tab" aria-selected="false" tabindex="-1">Fuzzy</button>
     </div>
-  </section>
 
-  <!-- Go Package Code Snippet Section -->
-  <section class="code-section">
-    <div class="section-container">
-      <div class="section-header">
-        <p class="section-eyebrow">Go library</p>
-        <h2>Use it from Go</h2>
-        <p class="section-desc">The CLI's normalization and matching code is available as Go packages.</p>
-      </div>
-
-      <div class="code-showcase">
-        <div class="code-block" data-lang="go">
-          <div class="code-bar">
-            <span class="code-lang">Go</span>
-            <button class="copy-btn" type="button" aria-label="Copy Go snippet" data-copy-target="go-snippet">Copy</button>
-          </div>
-          <pre><code id="go-snippet" class="language-go">{go_code_highlighted}</code></pre>
-        </div>
-      </div>
-
-      <div class="code-showcase-cta" style="text-align: center; margin-top: 1.25rem;">
-        <a href="docs/package.html" class="feature-link">Go package guide →</a>
-      </div>
+    <div class="terminal">
+      <div id="grep-cmd">{highlight_shell("$ grep 'مدرسه' corpus.txt")}</div>
+      <div id="grep-result" class="demo-miss">(no match: the text has vowel marks)</div>
     </div>
-  </section>
+    <div class="terminal">
+      <div id="agrep-cmd">{highlight_shell("$ agrep 'مدرسه' corpus.txt")}</div>
+      <div id="agrep-match-text" class="demo-result-text" dir="auto">هذه <mark>مَدْرَسَةٌ</mark> عريقة في المدينة.</div>
+      <div id="agrep-status" class="demo-status">1 match · bytes [7:27]</div>
+    </div>
+
+    <p class="demo-explainer" id="demo-explanation">
+      The default profile folds <code>ة</code> to <code>ه</code> and removes the vowel marks (<em>fathah</em>, <em>dammah</em>, <em>tanwin</em>) before comparing. The highlighted word is the original text, vowels included.
+    </p>
+
+    <h2 id="features">Features</h2>
+    <dl class="features">
+      <dt>Normalization profiles</dt>
+      <dd>Five profiles built on Unicode NFD (<code>search</code>, <code>strict</code>, <code>loose</code>, <code>lucene</code>, <code>camel</code>), plus flags to keep or fold individual kinds of marks and letters. <a href="docs/normalization.html">Normalization</a></dd>
+
+      <dt>Six Arabic-script languages</dt>
+      <dd>Arabic, Persian, Urdu, Pashto, Sorani Kurdish, and Uyghur. One language keeps its own letters; Arabic plus another language also folds shared letters such as <code>ک</code> and <code>ك</code>. <a href="docs/languages.html">Languages</a></dd>
+
+      <dt>Rasm and fuzzy matching</dt>
+      <dd>Search unpointed manuscripts, where <code>ب ت ث ن ي</code> share the skeleton <code>ٮ</code>. <code>--fuzzy</code> allows a set number of edits for typos and OCR errors. <a href="docs/matching.html">Matching</a></dd>
+
+      <dt>Offsets in the original text</dt>
+      <dd>Matching runs on normalized text, but every span is reported as byte offsets in the original line. A match inside the ligature <code>ﻻ</code> covers the whole ligature. <a href="docs/cli.html">JSON output</a></dd>
+
+      <dt>Legacy encodings and transliteration</dt>
+      <dd>Reads CP1256, ISO-8859-6, and UTF-16, and can detect which one a file uses. Queries can be typed in Buckwalter, ArabTeX, or ISO 233 transliteration. <a href="docs/input.html">Encodings</a></dd>
+
+      <dt>Go packages</dt>
+      <dd>The CLI is built on three importable packages: <code>arabic</code> for normalization, <code>match</code> for matchers, and <code>scan</code> for streaming line search. <a href="docs/package.html">Go packages</a></dd>
+    </dl>
+
+    <h2 id="performance">Performance</h2>
+    <p>agrep decodes and normalizes every line it reads, so it does more work than a byte search. When grep and ripgrep select the same lines, they are faster. The numbers below come from 16 MiB fixtures, median of five warm-cache runs on an AMD Ryzen 7 7735H.</p>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr><th>Measurement</th><th>Result</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Lines grep misses</td><td>390,168</td><td>Vowel-insensitive search for <span dir="rtl">قال</span>. grep and ripgrep find none of these lines.</td></tr>
+          <tr><td>Line count</td><td>296 MiB/s</td><td>Counting matching lines with <code>-c</code> on the repeated fixture, including process startup.</td></tr>
+          <tr><td>Vowel-insensitive search</td><td>19 MiB/s</td><td>The <span dir="rtl">قال</span> search above, normalizing every line.</td></tr>
+          <tr><td>Plain scan</td><td>2 allocs/op</td><td>Package benchmark over about 10 MiB, without span mapping.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><a href="docs/benchmarks.html">Benchmark setup and full results</a></p>
+
+    <h2 id="go">Use it from Go</h2>
+    <p>The CLI's normalization and matching code is available as Go packages.</p>
+    <div class="code-block" data-lang="go">
+      <div class="code-bar">
+        <span class="code-lang">Go</span>
+        <button class="copy-btn" type="button" aria-label="Copy Go snippet" data-copy-target="go-snippet">Copy</button>
+      </div>
+      <pre><code id="go-snippet" class="language-go">{go_code_highlighted}</code></pre>
+    </div>
+    <p><a href="docs/package.html">Go package guide</a></p>
+  </main>
 
   {site_footer}
 
@@ -1372,7 +1232,6 @@ def render_playground_page() -> str:
     site_header = render_site_header(
         active_nav="playground",
         relative_prefix="../",
-        badge="playground",
     )
 
     site_footer = render_site_footer(relative_prefix="../")
@@ -1384,26 +1243,9 @@ def render_playground_page() -> str:
   {site_header}
 
   <main class="shell">
-    <aside class="intro" aria-labelledby="page-title">
-      <div class="brand"><span class="brand-mark" aria-hidden="true">ا</span><span>agrep<span class="brand-dot">.</span></span></div>
-      <div class="intro-copy">
-        <p class="eyebrow">Arabic-script search / playground</p>
-        <h1 id="page-title">See the text behind the match.</h1>
-        <p>See the comparison key agrep uses for searching. Switch profiles and languages to explore the result.</p>
-      </div>
-      <div class="intro-foot">
-        <span class="intro-line" aria-hidden="true"></span>
-        <p>Same Go normalization library as the CLI. Runs locally in your browser via WebAssembly.</p>
-      </div>
-    </aside>
-
-    <div class="main-column">
       <header class="page-header">
-        <div>
-          <p class="section-kicker">Interactive WebAssembly tool</p>
-          <h2>Normalization playground</h2>
-        </div>
-        <span class="live-label"><span aria-hidden="true"></span> Live preview</span>
+        <h1 id="page-title">Normalization playground</h1>
+        <p>Type Arabic-script text to see the comparison key agrep builds from it. Switch the profile or language to see how the key changes. It uses the same Go code as the CLI, compiled to WebAssembly, and runs in your browser.</p>
       </header>
 
       <section class="workspace" aria-label="Normalization playground">
@@ -1442,11 +1284,11 @@ def render_playground_page() -> str:
 
         <div class="panels">
           <div class="panel panel-input">
-            <div class="panel-top"><label for="input"><span class="panel-number">01</span> Original text</label><button class="text-button" id="clear" type="button">Clear</button></div>
+            <div class="panel-top"><label for="input">Original text</label><button class="text-button" id="clear" type="button">Clear</button></div>
             <textarea id="input" dir="auto" spellcheck="false" placeholder="Type or paste Arabic-script text…">ﻻ يوجد ﻛِﺘـﺎﺏ</textarea>
           </div>
           <div class="panel panel-result">
-            <div class="panel-top"><span class="panel-title"><span class="panel-number">02</span> Comparison key</span><button class="text-button" id="copy" type="button" disabled>Copy key</button></div>
+            <div class="panel-top"><span class="panel-title">Comparison key</span><button class="text-button" id="copy" type="button" disabled>Copy key</button></div>
             <output id="key" class="key" dir="auto" aria-live="polite">Loading…</output>
             <p class="result-note">This is the key agrep compares during matching.</p>
           </div>
@@ -1460,8 +1302,7 @@ def render_playground_page() -> str:
         <p id="status" class="status" role="status">Loading the Go WebAssembly module…</p>
       </section>
 
-      <footer>Read the <a href="../docs/normalization.html">normalization reference</a> for rule definitions and caveats. <a href="GO-LICENSE.txt">Go runtime license</a>.</footer>
-    </div>
+      <p class="playground-note">Read the <a href="../docs/normalization.html">normalization reference</a> for rule definitions and caveats. <a href="GO-LICENSE.txt">Go runtime license</a>.</p>
   </main>
 
   {site_footer}
